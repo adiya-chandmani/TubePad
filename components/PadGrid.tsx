@@ -18,7 +18,7 @@ export function PadGrid({
   const { state } = useStore();
 
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-4 grid-rows-4 gap-2 flex-1 min-h-0">
       {PAD_ROWS.flat().map((id) => {
         const pad = state.project.pads[id];
         return (

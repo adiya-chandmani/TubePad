@@ -36,31 +36,35 @@ export function PadButton({
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={[
-        "relative aspect-square rounded-md flex flex-col items-start justify-between p-2 text-left transition-transform duration-75",
-        empty ? "bg-pad/40 border border-dashed border-white/20" : "bg-pad border border-black/40",
-        selected ? "ring-2 ring-padActive" : "",
-        pressed ? "scale-95 shadow-[0_0_16px_4px_rgba(59,130,246,0.7)] bg-padActive/80" : "",
+        "relative h-full w-full rounded-none flex flex-col items-start justify-between p-2 text-left border-2 border-black transition-transform duration-75",
+        empty ? "bg-navy/60 border-dashed border-gold/40" : "bg-cream shadow-pixelSm",
+        selected ? "outline outline-2 outline-offset-1 outline-gold" : "",
+        pressed ? "translate-x-[2px] translate-y-[2px] shadow-none bg-red" : "",
       ].join(" ")}
     >
       <div className="flex w-full items-start justify-between">
-        <span className="font-mono text-[11px] font-bold text-black/70">{pad.id}</span>
+        <span className={`font-display text-[10px] ${pressed ? "text-cream" : empty ? "text-cream/50" : "text-navyDeep"}`}>
+          {pad.id}
+        </span>
         {!empty && (
-          <span className="rounded bg-black/70 px-1 text-[9px] font-mono text-white/80">
+          <span className="bg-navyDeep px-1 text-[9px] font-pixel leading-tight text-gold">
             {SOURCE_BADGE[pad.sourceType]}
           </span>
         )}
       </div>
       {empty ? (
-        <div className="w-full text-center text-[10px] text-black/40">
+        <div className="w-full text-center font-pixel text-sm text-cream/40">
           <div className="text-lg leading-none">+</div>
           EMPTY
         </div>
       ) : (
         <div className="w-full">
-          <div className="truncate text-[10px] font-semibold uppercase text-black/80">
+          <div className={`truncate font-pixel text-sm leading-tight ${pressed ? "text-cream" : "text-navyDeep"}`}>
             {pad.name || pad.id}
           </div>
-          <div className="text-[10px] text-black/60">{pad.playbackRate.toFixed(2)}x</div>
+          <div className={`font-pixel text-xs ${pressed ? "text-cream/80" : "text-navyDeep/70"}`}>
+            {pad.playbackRate.toFixed(2)}x
+          </div>
         </div>
       )}
     </button>

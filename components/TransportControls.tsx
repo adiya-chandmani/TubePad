@@ -24,22 +24,22 @@ export function TransportControls({
   const duration = Math.max(0, end - start);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-between font-mono text-sm text-white/90">
+    <div className="flex flex-col gap-1.5 shrink-0">
+      <div className="flex justify-between font-pixel text-lg text-cream/90">
         <span>
-          START <span className="text-padActive">{formatTime(start)}</span>
+          START <span className="text-gold">{formatTime(start)}</span>
         </span>
         <span>
-          END <span className="text-padActive">{formatTime(end)}</span>
+          END <span className="text-gold">{formatTime(end)}</span>
         </span>
-        <span className="text-white/50">{duration.toFixed(3)}s</span>
+        <span className="text-cream/50">{duration.toFixed(3)}s</span>
       </div>
       <div className="flex flex-wrap gap-2">
         <button onClick={onSetStart} disabled={disabled} className={btnClass()}>
-          SET START <kbd className="opacity-50">I</kbd>
+          SET START <span className="opacity-60">[I]</span>
         </button>
         <button onClick={onSetEnd} disabled={disabled} className={btnClass()}>
-          SET END <kbd className="opacity-50">O</kbd>
+          SET END <span className="opacity-60">[O]</span>
         </button>
         <button onClick={onPreview} disabled={disabled || duration <= 0} className={btnClass()}>
           ▶ PREVIEW
@@ -47,7 +47,7 @@ export function TransportControls({
         <button
           onClick={onAssign}
           disabled={disabled || duration <= 0}
-          className={btnClass(armed ? "bg-fx text-black" : "")}
+          className={btnClass(armed ? "bg-gold text-navyDeep" : "")}
         >
           {armed ? "SELECT PAD…" : "ASSIGN"}
         </button>
@@ -57,5 +57,5 @@ export function TransportControls({
 }
 
 function btnClass(extra = "") {
-  return `rounded border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 ${extra}`;
+  return `rounded-none border-2 border-black bg-cream shadow-pixelSm px-2.5 py-1 font-pixel text-base text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-30 disabled:shadow-none disabled:active:translate-x-0 disabled:active:translate-y-0 ${extra}`;
 }

@@ -5,15 +5,39 @@
 html,
 body {
   height: 100%;
+  overflow: hidden;
 }
 
 body {
-  background: #0d0d0c;
-  color: #e5e5e0;
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background: #0b1c28;
+  color: #f0e6c8;
+  font-family: var(--font-vt323), ui-monospace, monospace;
 }
 
 ::selection {
-  background: #3b82f6;
-  color: white;
+  background: #d8a94a;
+  color: #0b1c28;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #000;
+  border: 1px solid #000;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #d8a94a;
+  border: 2px solid #000;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  accent-color: #d8a94a;
 }

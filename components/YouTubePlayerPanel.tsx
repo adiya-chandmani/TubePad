@@ -17,7 +17,7 @@ export function YouTubePlayerPanel({
   const [url, setUrl] = useState("");
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5 shrink-0">
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -29,23 +29,23 @@ export function YouTubePlayerPanel({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Paste YouTube URL"
-          className="flex-1 rounded bg-black/40 border border-white/20 px-3 py-1.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-padActive"
+          className="flex-1 rounded-none bg-black/40 border-2 border-gold/50 px-3 py-1 font-pixel text-lg text-cream placeholder:text-cream/30 outline-none focus:border-gold"
         />
         <button
           type="submit"
-          className="rounded bg-padActive px-4 py-1.5 text-sm font-bold text-white hover:brightness-110"
+          className="rounded-none bg-red border-2 border-black shadow-pixelSm px-4 py-1 font-display text-[10px] text-cream hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
         >
           LOAD
         </button>
       </form>
 
-      <div className="relative aspect-video w-full overflow-hidden rounded bg-black">
+      <div className="relative w-full h-[170px] overflow-hidden bg-black border-2 border-gold/50">
         <div id="tubepad-yt-player" className="h-full w-full" />
       </div>
 
-      <div className="flex items-center justify-between text-xs text-white/70">
+      <div className="flex items-center justify-between font-pixel text-lg text-cream/70">
         <span className="truncate max-w-[60%]">{title ?? "No video loaded"}</span>
-        <span className="font-mono">
+        <span>
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
       </div>

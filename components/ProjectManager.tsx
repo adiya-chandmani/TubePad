@@ -19,15 +19,15 @@ export function ProjectManager() {
   }, [open]);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 shrink-0">
       <input
         value={state.project.name}
         onChange={(e) => dispatch({ type: "RENAME_PROJECT", name: e.target.value })}
-        className="rounded bg-black/40 border border-white/20 px-2 py-1 text-xs text-white w-40 outline-none focus:border-padActive"
+        className="rounded-none bg-black/40 border-2 border-gold/40 px-2 py-1 font-pixel text-lg text-cream w-36 outline-none focus:border-gold"
       />
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20"
+        className="rounded-none border-2 border-black bg-cream shadow-pixelSm px-2 py-1 font-display text-[9px] text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
       >
         PROJECTS
       </button>
@@ -38,18 +38,18 @@ export function ProjectManager() {
           saveProject(p);
           localStorage.setItem(LAST_PROJECT_KEY, p.id);
         }}
-        className="rounded border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20"
+        className="rounded-none border-2 border-black bg-cream shadow-pixelSm px-2 py-1 font-display text-[9px] text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
       >
         NEW
       </button>
 
       {open && (
-        <div className="absolute top-10 right-4 z-20 w-64 rounded border border-white/20 bg-panel p-2 shadow-xl">
-          {projects.length === 0 && <p className="text-xs text-white/40 p-2">No saved projects yet.</p>}
+        <div className="absolute top-10 right-4 z-20 w-64 rounded-none border-2 border-gold bg-navyDeep p-2 shadow-pixel">
+          {projects.length === 0 && <p className="font-pixel text-base text-cream/40 p-2">No saved projects yet.</p>}
           {projects.map((p) => (
-            <div key={p.id} className="flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-white/10">
+            <div key={p.id} className="flex items-center justify-between gap-2 px-2 py-1 hover:bg-cream/10">
               <button
-                className="flex-1 text-left text-xs text-white/80 truncate"
+                className="flex-1 text-left font-pixel text-base text-cream/80 truncate"
                 onClick={() => {
                   dispatch({ type: "HYDRATE", project: p });
                   localStorage.setItem(LAST_PROJECT_KEY, p.id);
@@ -57,10 +57,10 @@ export function ProjectManager() {
                 }}
               >
                 {p.name}
-                <div className="text-[10px] text-white/40">{new Date(p.updatedAt).toLocaleString()}</div>
+                <div className="text-sm text-cream/40">{new Date(p.updatedAt).toLocaleString()}</div>
               </button>
               <button
-                className="text-[10px] text-rec hover:brightness-125"
+                className="text-sm text-red hover:brightness-125"
                 onClick={async () => {
                   await deleteProject(p.id);
                   refresh();

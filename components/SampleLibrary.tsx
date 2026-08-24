@@ -24,28 +24,28 @@ export function SampleLibrary({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-white/10 bg-white/5 p-3">
+    <div className="flex flex-col gap-2 rounded-none border-2 border-gold/50 bg-black/20 p-2 flex-1 min-h-0">
       <button
-        className="flex items-center justify-between text-xs font-bold uppercase text-white/60"
+        className="flex items-center justify-between font-pixel text-lg text-cream/70 shrink-0"
         onClick={() => setOpen((o) => !o)}
       >
-        <span>Sound Library</span>
+        <span>SOUND LIBRARY</span>
         <span>{open ? "▾" : "▸"}</span>
       </button>
 
       {open && (
         <>
-          <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto pr-1">
             {CATEGORIES.map((cat) => (
               <div key={cat}>
-                <div className="text-[10px] font-bold text-white/40 mb-1">{cat}</div>
+                <div className="font-pixel text-sm text-gold/70 mb-1">{cat}</div>
                 <div className="flex flex-wrap gap-1">
                   {BUILTIN_SOUNDS.filter((s) => s.category === cat).map((s) => (
                     <div
                       key={s.id}
                       draggable
                       onDragStart={(e) => e.dataTransfer.setData(BUILTIN_DRAG_TYPE, s.id)}
-                      className="cursor-grab rounded bg-black/40 border border-white/20 px-2 py-1 text-[11px] text-white/80 active:cursor-grabbing"
+                      className="cursor-grab rounded-none bg-cream border-2 border-black px-2 py-0.5 font-pixel text-base text-navyDeep active:cursor-grabbing"
                       title="Drag onto a pad"
                     >
                       {s.name}
@@ -58,7 +58,7 @@ export function SampleLibrary({
 
           <button
             onClick={() => fileInput.current?.click()}
-            className="rounded border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20"
+            className="shrink-0 rounded-none border-2 border-black bg-cream shadow-pixelSm px-3 py-1 font-pixel text-base text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
           >
             IMPORT SAMPLE
           </button>
@@ -73,7 +73,7 @@ export function SampleLibrary({
               e.target.value = "";
             }}
           />
-          <p className="text-[10px] text-white/40">
+          <p className="shrink-0 font-pixel text-sm text-cream/40">
             Drag a sound onto a pad, or drop your own audio file onto a pad directly.
           </p>
         </>

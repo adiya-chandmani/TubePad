@@ -5,9 +5,9 @@ import { useStore } from "@/lib/store";
 import { isPadEmpty, RATE_STEPS } from "@/lib/types";
 import { createPlayer, extractVideoId, TubePadPlayer, YT_STATE } from "@/lib/youtube";
 import { PlaybackEngine } from "@/lib/engine";
-import { setMasterVolume, decodeBlob } from "@/lib/audio";
+import { setMasterVolume, decodeBlob, cacheBuffer } from "@/lib/audio";
 import { saveAsset } from "@/lib/db";
-import { BUILTIN_SOUNDS } from "@/lib/builtinSounds";
+import { BUILTIN_SOUNDS, renderBuiltinSound } from "@/lib/builtinSounds";
 import { BUILTIN_DRAG_TYPE } from "./SampleLibrary";
 
 import { YouTubePlayerPanel } from "./YouTubePlayerPanel";
@@ -91,6 +91,23 @@ export function MPCShell() {
     engineRef.current.setYoutubePlayer(player);
     setYtPlayer(player);
   }
+
+  // Pre-render every builtin sound once at startup so the first press of
+  // any pad never has to wait on OfflineAudioContext rendering — that
+  // render (not the Web Audio playback itself) was the perceptible delay.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      for (const sound of BUILTIN_SOUNDS) {
+        const buffer = await renderBuiltinSound(sound);
+        if (cancelled) return;
+        cacheBuffer(sound.id, buffer);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!ytPlayer) return;
@@ -273,19 +290,33 @@ export function MPCShell() {
   }
 
   return (
-    <div className="min-h-screen bg-body text-black flex items-center justify-center p-4">
-      <div className="hidden max-[900px]:block fixed inset-x-0 top-0 bg-fx text-black text-center text-xs py-1 z-30">
+    <div className="h-screen w-screen overflow-hidden bg-navy text-cream flex items-center justify-center p-3">
+      <div className="hidden max-[900px]:block fixed inset-x-0 top-0 bg-gold text-navyDeep text-center text-xs py-1 z-30 font-pixel">
         TubePad works best on desktop. Open this site on a computer for the full MPC experience.
       </div>
 
-      <div className="relative w-full max-w-5xl rounded-xl bg-panel p-4 shadow-2xl border border-black/50">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-white font-black tracking-widest text-lg">TUBEPAD</h1>
+      <div className="relative w-full max-w-6xl h-full max-h-[900px] flex flex-col rounded-none bg-navyDeep p-3 border-4 border-gold shadow-pixel">
+        <div className="flex items-center justify-between mb-3 shrink-0 gap-3">
+          <h1 className="font-display text-red text-[13px] leading-none tracking-tight [text-shadow:2px_2px_0_#000]">
+            TUBEPAD
+          </h1>
+          <label className="flex items-center gap-2 font-pixel text-lg text-cream/80">
+            MAIN VOL
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={state.project.masterVolume}
+              onChange={(e) => dispatch({ type: "SET_MASTER_VOLUME", value: Number(e.target.value) })}
+              className="w-24 accent-gold"
+            />
+          </label>
           <ProjectManager />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-          <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3 flex-1 min-h-0">
+          <div className="flex flex-col gap-2 min-h-0">
             <YouTubePlayerPanel
               title={state.project.videoTitle}
               currentTime={currentTime}
@@ -317,26 +348,9 @@ export function MPCShell() {
               onPadDown={(id) => handlePadDown(id, false)}
               onPadUp={(id) => handlePadUp(id)}
             />
-
-            <div className="flex items-center gap-3 text-white/80 text-xs">
-              <label className="flex items-center gap-2">
-                MAIN VOLUME
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={state.project.masterVolume}
-                  onChange={(e) =>
-                    dispatch({ type: "SET_MASTER_VOLUME", value: Number(e.target.value) })
-                  }
-                  className="accent-padActive"
-                />
-              </label>
-            </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 min-h-0">
             <DisplayScreen />
             <SampleEditor
               editingPadLabel={state.selectedPadId}

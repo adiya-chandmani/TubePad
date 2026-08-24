@@ -22,32 +22,32 @@ export function SampleEditor({
   editingPadLabel: string | null;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded border border-white/10 bg-white/5 p-3">
+    <div className="flex flex-col gap-2 rounded-none border-2 border-gold/50 bg-black/20 p-2 shrink-0">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase text-white/60">
-          {editingPadLabel ? `Editing Pad ${editingPadLabel}` : "New Sample"}
+        <span className="font-pixel text-lg text-cream/70">
+          {editingPadLabel ? `EDITING PAD ${editingPadLabel}` : "NEW SAMPLE"}
         </span>
         {onDelete && (
           <button
             onClick={onDelete}
-            className="rounded bg-rec/80 px-2 py-1 text-[10px] font-bold text-white hover:bg-rec"
+            className="rounded-none border-2 border-black bg-red px-2 py-0.5 font-display text-[9px] text-cream hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px]"
           >
             ERASE
           </button>
         )}
       </div>
 
-      <label className="flex flex-col gap-1 text-xs text-white/70">
+      <label className="flex flex-col gap-0.5 font-pixel text-base text-cream/70">
         NAME
         <input
           value={values.name}
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="Vocal Chop"
-          className="rounded bg-black/40 border border-white/20 px-2 py-1 text-sm text-white outline-none focus:border-padActive"
+          className="rounded-none bg-black/40 border-2 border-gold/40 px-2 py-0.5 font-pixel text-lg text-cream outline-none focus:border-gold"
         />
       </label>
 
-      <label className="flex flex-col gap-1 text-xs text-white/70">
+      <label className="flex flex-col gap-0.5 font-pixel text-base text-cream/70">
         PLAY RATE — {values.rate.toFixed(2)}x
         <input
           type="range"
@@ -56,16 +56,16 @@ export function SampleEditor({
           step={0.05}
           value={values.rate}
           onChange={(e) => onChange({ rate: Number(e.target.value) })}
-          className="accent-padActive"
+          className="accent-gold"
         />
-        <div className="flex justify-between text-[10px] text-white/40">
+        <div className="flex justify-between text-xs text-cream/40">
           {RATE_STEPS.map((r) => (
             <span key={r}>{r}x</span>
           ))}
         </div>
       </label>
 
-      <label className="flex flex-col gap-1 text-xs text-white/70">
+      <label className="flex flex-col gap-0.5 font-pixel text-base text-cream/70">
         VOLUME — {Math.round(values.volume * 100)}
         <input
           type="range"
@@ -74,12 +74,12 @@ export function SampleEditor({
           step={0.01}
           value={values.volume}
           onChange={(e) => onChange({ volume: Number(e.target.value) })}
-          className="accent-padActive"
+          className="accent-gold"
         />
       </label>
 
       <div className="flex gap-4">
-        <label className="flex items-center gap-2 text-xs text-white/70">
+        <label className="flex items-center gap-2 font-pixel text-base text-cream/70">
           <input
             type="checkbox"
             checked={values.loop}
@@ -88,17 +88,17 @@ export function SampleEditor({
           LOOP
         </label>
 
-        <div className="flex items-center gap-1 text-xs text-white/70">
+        <div className="flex items-center gap-1 font-pixel text-base text-cream/70">
           MODE
           <button
             onClick={() => onChange({ mode: "oneshot" })}
-            className={`rounded px-2 py-0.5 ${values.mode === "oneshot" ? "bg-padActive text-white" : "bg-white/10"}`}
+            className={`rounded-none border-2 border-black px-2 py-0.5 ${values.mode === "oneshot" ? "bg-gold text-navyDeep" : "bg-black/30"}`}
           >
             ONE SHOT
           </button>
           <button
             onClick={() => onChange({ mode: "hold" })}
-            className={`rounded px-2 py-0.5 ${values.mode === "hold" ? "bg-padActive text-white" : "bg-white/10"}`}
+            className={`rounded-none border-2 border-black px-2 py-0.5 ${values.mode === "hold" ? "bg-gold text-navyDeep" : "bg-black/30"}`}
           >
             HOLD
           </button>
