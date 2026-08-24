@@ -95,10 +95,17 @@ export function newProject(name = "Untitled"): Project {
 }
 
 /** Projects saved by an older build may be missing bpm/sequencerSteps/
- * recordedSequence — backfill defaults instead of crashing on load. */
+ * recordedSequence, or individual pads may be missing fields added later
+ * (e.g. pan/reverse) — backfill defaults instead of crashing, or handing
+ * React a `value={undefined}` on a controlled input, on load. */
 export function normalizeProject(p: Project): Project {
+  const pads: Record<string, Pad> = {};
+  for (const id of PAD_IDS) {
+    pads[id] = { ...emptyPad(id), ...p.pads[id] };
+  }
   return {
     ...p,
+    pads,
     bpm: p.bpm ?? 120,
     sequencerSteps: p.sequencerSteps ?? emptySteps(),
     recordedSequence: p.recordedSequence ?? [],
