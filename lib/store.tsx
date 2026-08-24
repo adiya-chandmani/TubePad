@@ -13,11 +13,14 @@ import {
   DEFAULT_SYNTH,
   Pad,
   PadMode,
+  PAD_IDS,
+  PadSource,
   Project,
   RecordedEvent,
   SEQUENCER_STEPS,
   SynthWaveform,
   emptyPad,
+  isPadEmpty,
   newProject,
   normalizeProject,
 } from "./types";
@@ -103,7 +106,18 @@ type Action =
   | { type: "SET_BPM"; value: number }
   | { type: "TOGGLE_STEP"; padId: string; stepIndex: number }
   | { type: "CLEAR_SEQUENCER" }
-  | { type: "SET_RECORDED_SEQUENCE"; events: RecordedEvent[] };
+  | { type: "SET_RECORDED_SEQUENCE"; events: RecordedEvent[] }
+  | {
+      type: "CHOP_ASSIGN";
+      source: {
+        sourceType: PadSource;
+        videoId?: string;
+        videoTitle?: string;
+        audioAssetId?: string;
+        name: string;
+      };
+      slices: { start: number; end: number }[];
+    };
 
 function pushHistory(history: UndoEntry[], padId: string, prevPad: Pad): UndoEntry[] {
   const next = [...history, { padId, prevPad }];
@@ -267,6 +281,27 @@ function reducer(state: State, action: Action): State {
     }
     case "SET_RECORDED_SEQUENCE":
       return { ...state, project: { ...state.project, recordedSequence: action.events } };
+    case "CHOP_ASSIGN": {
+      const targetIds = PAD_IDS.filter((id) => isPadEmpty(state.project.pads[id])).slice(0, action.slices.length);
+      const pads = { ...state.project.pads };
+      let history = state.history;
+      targetIds.forEach((padId, i) => {
+        const slice = action.slices[i];
+        const prevPad = pads[padId];
+        pads[padId] = {
+          ...emptyPad(padId),
+          sourceType: action.source.sourceType,
+          videoId: action.source.videoId,
+          videoTitle: action.source.videoTitle,
+          audioAssetId: action.source.audioAssetId,
+          name: `${action.source.name} ${i + 1}`,
+          start: slice.start,
+          end: slice.end,
+        };
+        history = pushHistory(history, padId, prevPad);
+      });
+      return { ...state, project: { ...state.project, pads }, history };
+    }
     default:
       return state;
   }

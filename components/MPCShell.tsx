@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { DEFAULT_SYNTH, isPadEmpty, Pad, PAD_IDS, RATE_STEPS, RecordedEvent, SEQUENCER_STEPS } from "@/lib/types";
 import { createPlayer, extractVideoId, TubePadPlayer, YT_STATE } from "@/lib/youtube";
 import { PlaybackEngine } from "@/lib/engine";
-import { setMasterVolume, decodeBlob, cacheBuffer } from "@/lib/audio";
+import { setMasterVolume, decodeBlob, cacheBuffer, getCachedBuffer } from "@/lib/audio";
 import { saveAsset, isStorageAvailable } from "@/lib/db";
 import { BUILTIN_SOUNDS, renderBuiltinSound } from "@/lib/builtinSounds";
 import { BUILTIN_DRAG_TYPE } from "./SampleLibrary";
@@ -19,6 +19,8 @@ import { DisplayScreen } from "./DisplayScreen";
 import { SampleEditor } from "./SampleEditor";
 import { SampleLibrary } from "./SampleLibrary";
 import { ProjectManager } from "./ProjectManager";
+import { ChopYoutubePanel } from "./ChopYoutubePanel";
+import { ChopWaveformPanel } from "./ChopWaveformPanel";
 
 function nearestRateStep(rate: number, dir: 1 | -1): number {
   const idx = RATE_STEPS.findIndex((r) => r > rate - 1e-6);
@@ -66,6 +68,73 @@ export function MPCShell() {
   const playbackTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const seqTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seqStepRef = useRef(0);
+
+  // --- chop: MPC-style slicing across N pads at once -------------------
+  // YouTube pads have no PCM access through the IFrame API, so they get
+  // manual tap-to-mark chopping instead of the waveform-based Region/
+  // Threshold modes builtin/upload pads support.
+  const [chopMode, setChopMode] = useState<null | "youtube" | "waveform">(null);
+  const [ytChopMarkers, setYtChopMarkers] = useState<number[]>([]);
+  const [chopSource, setChopSource] = useState<{
+    assetId: string;
+    sourceType: "builtin" | "upload";
+    name: string;
+    buffer: AudioBuffer;
+  } | null>(null);
+
+  const openYoutubeChop = useCallback(() => {
+    if (!ytPlayer) return;
+    setYtChopMarkers([]);
+    setChopMode("youtube");
+  }, [ytPlayer]);
+
+  const openWaveformChop = useCallback((assetId: string | undefined, sourceType: "builtin" | "upload", name: string) => {
+    if (!assetId) return;
+    const buffer = getCachedBuffer(assetId);
+    if (!buffer) {
+      alert("This sample isn't loaded yet — trigger it once, then try Chop again.");
+      return;
+    }
+    setChopSource({ assetId, sourceType, name, buffer });
+    setChopMode("waveform");
+  }, []);
+
+  const closeChop = useCallback(() => {
+    setChopMode(null);
+    setChopSource(null);
+  }, []);
+
+  const applyYtChop = useCallback(() => {
+    if (ytChopMarkers.length < 2) return;
+    const slices = [];
+    for (let i = 0; i < ytChopMarkers.length - 1; i++) {
+      slices.push({ start: ytChopMarkers[i], end: ytChopMarkers[i + 1] });
+    }
+    dispatch({
+      type: "CHOP_ASSIGN",
+      source: {
+        sourceType: "youtube",
+        videoId: state.project.videoId ?? undefined,
+        videoTitle: state.project.videoTitle ?? undefined,
+        name: state.project.videoTitle ?? "Chop",
+      },
+      slices,
+    });
+    closeChop();
+  }, [ytChopMarkers, state.project.videoId, state.project.videoTitle, dispatch, closeChop]);
+
+  const applyWaveformChop = useCallback(
+    (slices: { start: number; end: number }[]) => {
+      if (!chopSource) return;
+      dispatch({
+        type: "CHOP_ASSIGN",
+        source: { sourceType: chopSource.sourceType, audioAssetId: chopSource.assetId, name: chopSource.name },
+        slices,
+      });
+      closeChop();
+    },
+    [chopSource, dispatch, closeChop]
+  );
 
   const selectedPad = state.selectedPadId ? state.project.pads[state.selectedPadId] : null;
   const editStart = selectedPad ? selectedPad.start : state.pending.start;
@@ -375,6 +444,11 @@ export function MPCShell() {
       const target = e.target as HTMLElement;
       if (isTypingTarget(target)) return;
 
+      if (chopMode) {
+        if (e.key === "Escape") closeChop();
+        return;
+      }
+
       const key = e.key.toLowerCase();
 
       if ((e.metaKey || e.ctrlKey) && key === "z") {
@@ -449,7 +523,7 @@ export function MPCShell() {
 
     function onKeyUp(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
-      if (isTypingTarget(target)) return;
+      if (isTypingTarget(target) || chopMode) return;
       const padId = keyToPad.get(e.key.toLowerCase());
       if (padId) userPadUp(padId);
     }
@@ -460,7 +534,7 @@ export function MPCShell() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [state.project.pads, state.selectedPadId, ytPlayer, editRate, userPadDown, userPadUp, patchEdit, dispatch]);
+  }, [state.project.pads, state.selectedPadId, ytPlayer, editRate, userPadDown, userPadUp, patchEdit, dispatch, chopMode, closeChop]);
 
   // --- drag & drop onto pads (builtin sound or local file) ------------
   async function handleDropAsset(padId: string, e: React.DragEvent) {
@@ -626,6 +700,7 @@ export function MPCShell() {
                 })
               }
               onAssign={() => dispatch({ type: state.armed ? "DISARM" : "ARM" })}
+              onChop={openYoutubeChop}
             />
 
             {seqMode ? (
@@ -674,6 +749,11 @@ export function MPCShell() {
                   ? () => dispatch({ type: "DELETE_PAD", padId: state.selectedPadId! })
                   : undefined
               }
+              onChop={
+                selectedPad && (selectedPad.sourceType === "builtin" || selectedPad.sourceType === "upload")
+                  ? () => openWaveformChop(selectedPad.audioAssetId, selectedPad.sourceType as "builtin" | "upload", selectedPad.name)
+                  : undefined
+              }
             />
             <SampleLibrary
               onImportStaged={(assetId, name, duration) => {
@@ -714,6 +794,25 @@ export function MPCShell() {
           </div>
         </div>
       </div>
+
+      {chopMode === "youtube" && (
+        <ChopYoutubePanel
+          currentTime={currentTime}
+          duration={state.duration}
+          markers={ytChopMarkers}
+          onTap={() => {
+            const t = ytPlayer?.player.getCurrentTime() ?? 0;
+            setYtChopMarkers((prev) => [...prev, t].sort((a, b) => a - b));
+          }}
+          onRemove={(i) => setYtChopMarkers((prev) => prev.filter((_, idx) => idx !== i))}
+          onApply={applyYtChop}
+          onClose={closeChop}
+        />
+      )}
+
+      {chopMode === "waveform" && chopSource && (
+        <ChopWaveformPanel buffer={chopSource.buffer} name={chopSource.name} onApply={applyWaveformChop} onClose={closeChop} />
+      )}
     </div>
   );
 }

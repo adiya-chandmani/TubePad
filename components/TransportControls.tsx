@@ -16,6 +16,7 @@ export function TransportControls({
   onNudgeEnd,
   onPreview,
   onAssign,
+  onChop,
 }: {
   start: number;
   end: number;
@@ -28,6 +29,7 @@ export function TransportControls({
   onNudgeEnd: (deltaSeconds: number) => void;
   onPreview: () => void;
   onAssign: () => void;
+  onChop?: () => void;
 }) {
   const duration = Math.max(0, end - start);
   // A synth voice is always "ready" (defaults cover every param) — only
@@ -71,6 +73,11 @@ export function TransportControls({
         >
           {armed ? "SELECT PAD…" : "ASSIGN"}
         </button>
+        {!hideTimeline && onChop && (
+          <button onClick={onChop} disabled={disabled} className={btnClass()} title="Chop the video into multiple pads">
+            ✂ CHOP
+          </button>
+        )}
       </div>
     </div>
   );

@@ -28,12 +28,14 @@ export function SampleEditor({
   sourceType,
   onChange,
   onDelete,
+  onChop,
   editingPadLabel,
 }: {
   values: EditorValues;
   sourceType: PadSource;
   onChange: (patch: Partial<EditorValues>) => void;
   onDelete?: () => void;
+  onChop?: () => void;
   editingPadLabel: string | null;
 }) {
   const isSynth = sourceType === "synth";
@@ -42,6 +44,7 @@ export function SampleEditor({
   // synth oscillator supports it.
   const supportsPan = sourceType !== "youtube";
   const supportsReverse = sourceType === "builtin" || sourceType === "upload";
+  const supportsChop = editingPadLabel && (sourceType === "builtin" || sourceType === "upload");
 
   return (
     <div className="flex flex-col gap-2 rounded-none border-2 border-gold/50 bg-black/20 p-2 shrink-0">
@@ -49,14 +52,25 @@ export function SampleEditor({
         <span className="font-pixel text-lg text-cream/70">
           {editingPadLabel ? `EDITING PAD ${editingPadLabel}` : "NEW SAMPLE"}
         </span>
-        {onDelete && (
-          <button
-            onClick={onDelete}
-            className="rounded-none border-2 border-black bg-red px-2 py-0.5 font-display text-[9px] text-cream hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px]"
-          >
-            ERASE
-          </button>
-        )}
+        <div className="flex gap-1">
+          {supportsChop && (
+            <button
+              onClick={onChop}
+              className="rounded-none border-2 border-black bg-gold px-2 py-0.5 font-display text-[9px] text-navyDeep hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px]"
+              title="Chop this sample into multiple pads"
+            >
+              ✂ CHOP
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="rounded-none border-2 border-black bg-red px-2 py-0.5 font-display text-[9px] text-cream hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px]"
+            >
+              ERASE
+            </button>
+          )}
+        </div>
       </div>
 
       <label className="flex flex-col gap-0.5 font-pixel text-base text-cream/70">
