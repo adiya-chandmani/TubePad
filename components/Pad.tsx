@@ -1,11 +1,12 @@
 "use client";
 
-import { Pad as PadType, isPadEmpty } from "@/lib/types";
+import { Pad as PadType, isPadEmpty, noteName } from "@/lib/types";
 
 const SOURCE_BADGE: Record<PadType["sourceType"], string> = {
   youtube: "YT",
   builtin: "BI",
   upload: "UP",
+  synth: "SY",
 };
 
 export function PadButton({
@@ -63,7 +64,7 @@ export function PadButton({
             {pad.name || pad.id}
           </div>
           <div className={`font-pixel text-xs ${pressed ? "text-cream/80" : "text-navyDeep/70"}`}>
-            {pad.playbackRate.toFixed(2)}x
+            {pad.sourceType === "synth" ? noteName(pad.synthNote ?? 60) : `${pad.playbackRate.toFixed(2)}x`}
           </div>
         </div>
       )}

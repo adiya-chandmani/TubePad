@@ -9,7 +9,18 @@ import {
   useReducer,
   useRef,
 } from "react";
-import { Pad, PadMode, Project, RecordedEvent, SEQUENCER_STEPS, emptyPad, newProject, normalizeProject } from "./types";
+import {
+  DEFAULT_SYNTH,
+  Pad,
+  PadMode,
+  Project,
+  RecordedEvent,
+  SEQUENCER_STEPS,
+  SynthWaveform,
+  emptyPad,
+  newProject,
+  normalizeProject,
+} from "./types";
 import { saveProject, loadProject, LAST_PROJECT_KEY } from "./db";
 
 interface Pending {
@@ -24,6 +35,14 @@ interface Pending {
   name: string;
   sourceType: Pad["sourceType"];
   audioAssetId?: string;
+  synthWaveform: SynthWaveform;
+  synthNote: number;
+  synthAttack: number;
+  synthDecay: number;
+  synthSustain: number;
+  synthRelease: number;
+  synthFilterCutoff: number;
+  synthFilterQ: number;
 }
 
 const initialPending: Pending = {
@@ -37,6 +56,14 @@ const initialPending: Pending = {
   mode: "oneshot",
   name: "",
   sourceType: "youtube",
+  synthWaveform: DEFAULT_SYNTH.waveform,
+  synthNote: DEFAULT_SYNTH.note,
+  synthAttack: DEFAULT_SYNTH.attack,
+  synthDecay: DEFAULT_SYNTH.decay,
+  synthSustain: DEFAULT_SYNTH.sustain,
+  synthRelease: DEFAULT_SYNTH.release,
+  synthFilterCutoff: DEFAULT_SYNTH.filterCutoff,
+  synthFilterQ: DEFAULT_SYNTH.filterQ,
 };
 
 const UNDO_STACK_LIMIT = 20;
@@ -130,6 +157,14 @@ function reducer(state: State, action: Action): State {
         reverse: p.reverse,
         loop: p.loop,
         mode: p.mode,
+        synthWaveform: p.sourceType === "synth" ? p.synthWaveform : undefined,
+        synthNote: p.sourceType === "synth" ? p.synthNote : undefined,
+        synthAttack: p.sourceType === "synth" ? p.synthAttack : undefined,
+        synthDecay: p.sourceType === "synth" ? p.synthDecay : undefined,
+        synthSustain: p.sourceType === "synth" ? p.synthSustain : undefined,
+        synthRelease: p.sourceType === "synth" ? p.synthRelease : undefined,
+        synthFilterCutoff: p.sourceType === "synth" ? p.synthFilterCutoff : undefined,
+        synthFilterQ: p.sourceType === "synth" ? p.synthFilterQ : undefined,
       };
       return {
         ...state,

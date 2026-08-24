@@ -1,6 +1,8 @@
-export type PadSource = "youtube" | "builtin" | "upload";
+export type PadSource = "youtube" | "builtin" | "upload" | "synth";
 
 export type PadMode = "oneshot" | "hold";
+
+export type SynthWaveform = "sine" | "square" | "sawtooth" | "triangle";
 
 export interface Pad {
   id: string; // keyboard key, e.g. "A", "1"
@@ -14,9 +16,39 @@ export interface Pad {
   playbackRate: number;
   volume: number; // 0..1
   pan: number; // -1 (left) .. 1 (right). YouTube pads ignore this — the IFrame API has no pan control.
-  reverse: boolean; // builtin/upload only, same reason.
+  reverse: boolean; // builtin/upload only, same reason (no audio buffer to reverse for synth either).
   loop: boolean;
   mode: PadMode;
+  // synth-only — a live oscillator, not a sample, so no start/end/audioAssetId.
+  // All-or-nothing: a pad is only ever assigned these together (see
+  // ASSIGN_PENDING_TO_PAD), so synthNote's presence alone is a reliable
+  // "is this pad actually a configured synth voice" check (isPadEmpty).
+  synthWaveform?: SynthWaveform;
+  synthNote?: number; // MIDI note number, 60 = C4
+  synthAttack?: number; // seconds
+  synthDecay?: number; // seconds
+  synthSustain?: number; // 0..1 level held between decay and release
+  synthRelease?: number; // seconds
+  synthFilterCutoff?: number; // Hz
+  synthFilterQ?: number;
+}
+
+export const DEFAULT_SYNTH = {
+  waveform: "sawtooth" as SynthWaveform,
+  note: 60,
+  attack: 0.01,
+  decay: 0.15,
+  sustain: 0.6,
+  release: 0.2,
+  filterCutoff: 4000,
+  filterQ: 1,
+};
+
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+export function noteName(midiNote: number): string {
+  const octave = Math.floor(midiNote / 12) - 1;
+  return `${NOTE_NAMES[((midiNote % 12) + 12) % 12]}${octave}`;
 }
 
 export interface RecordedEvent {
@@ -74,6 +106,7 @@ export function emptyPad(id: string): Pad {
 }
 
 export function isPadEmpty(pad: Pad): boolean {
+  if (pad.sourceType === "synth") return pad.synthNote === undefined;
   return pad.end <= pad.start && !pad.audioAssetId;
 }
 

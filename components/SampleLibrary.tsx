@@ -10,8 +10,10 @@ export const BUILTIN_DRAG_TYPE = "application/x-tubepad-builtin";
 
 export function SampleLibrary({
   onImportStaged,
+  onNewSynth,
 }: {
   onImportStaged: (assetId: string, name: string, duration: number) => void;
+  onNewSynth: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -56,12 +58,21 @@ export function SampleLibrary({
             ))}
           </div>
 
-          <button
-            onClick={() => fileInput.current?.click()}
-            className="shrink-0 rounded-none border-2 border-black bg-cream shadow-pixelSm px-3 py-1 font-pixel text-base text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-          >
-            IMPORT SAMPLE
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fileInput.current?.click()}
+              className="flex-1 shrink-0 rounded-none border-2 border-black bg-cream shadow-pixelSm px-3 py-1 font-pixel text-base text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+            >
+              IMPORT SAMPLE
+            </button>
+            <button
+              onClick={onNewSynth}
+              className="flex-1 shrink-0 rounded-none border-2 border-black bg-gold shadow-pixelSm px-3 py-1 font-pixel text-base text-navyDeep hover:brightness-95 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+              title="Create a synth voice and assign it to a pad"
+            >
+              + SYNTH
+            </button>
+          </div>
           <input
             ref={fileInput}
             type="file"

@@ -9,6 +9,7 @@ export function TransportControls({
   end,
   armed,
   disabled,
+  hideTimeline,
   onSetStart,
   onSetEnd,
   onNudgeStart,
@@ -20,6 +21,7 @@ export function TransportControls({
   end: number;
   armed: boolean;
   disabled: boolean;
+  hideTimeline?: boolean;
   onSetStart: () => void;
   onSetEnd: () => void;
   onNudgeStart: (deltaSeconds: number) => void;
@@ -28,33 +30,43 @@ export function TransportControls({
   onAssign: () => void;
 }) {
   const duration = Math.max(0, end - start);
+  // A synth voice is always "ready" (defaults cover every param) — only
+  // a sample's Start/End trim needs a real duration before it can be
+  // previewed or assigned.
+  const canPreviewOrAssign = hideTimeline || duration > 0;
 
   return (
     <div className="flex flex-col gap-1.5 shrink-0">
-      <div className="flex justify-between font-pixel text-lg text-cream/90">
-        <span className="flex items-center gap-1">
-          START <span className="text-gold">{formatTime(start)}</span>
-          <NudgeButtons disabled={disabled} onNudge={onNudgeStart} />
-        </span>
-        <span className="flex items-center gap-1">
-          END <span className="text-gold">{formatTime(end)}</span>
-          <NudgeButtons disabled={disabled} onNudge={onNudgeEnd} />
-        </span>
-        <span className="text-cream/50">{duration.toFixed(3)}s</span>
-      </div>
+      {!hideTimeline && (
+        <div className="flex justify-between font-pixel text-lg text-cream/90">
+          <span className="flex items-center gap-1">
+            START <span className="text-gold">{formatTime(start)}</span>
+            <NudgeButtons disabled={disabled} onNudge={onNudgeStart} />
+          </span>
+          <span className="flex items-center gap-1">
+            END <span className="text-gold">{formatTime(end)}</span>
+            <NudgeButtons disabled={disabled} onNudge={onNudgeEnd} />
+          </span>
+          <span className="text-cream/50">{duration.toFixed(3)}s</span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
-        <button onClick={onSetStart} disabled={disabled} className={btnClass()}>
-          SET START <span className="opacity-60">[I]</span>
-        </button>
-        <button onClick={onSetEnd} disabled={disabled} className={btnClass()}>
-          SET END <span className="opacity-60">[O]</span>
-        </button>
-        <button onClick={onPreview} disabled={disabled || duration <= 0} className={btnClass()}>
+        {!hideTimeline && (
+          <>
+            <button onClick={onSetStart} disabled={disabled} className={btnClass()}>
+              SET START <span className="opacity-60">[I]</span>
+            </button>
+            <button onClick={onSetEnd} disabled={disabled} className={btnClass()}>
+              SET END <span className="opacity-60">[O]</span>
+            </button>
+          </>
+        )}
+        <button onClick={onPreview} disabled={!canPreviewOrAssign} className={btnClass()}>
           ▶ PREVIEW
         </button>
         <button
           onClick={onAssign}
-          disabled={disabled || duration <= 0}
+          disabled={!canPreviewOrAssign}
           className={btnClass(armed ? "bg-gold text-navyDeep" : "")}
         >
           {armed ? "SELECT PAD…" : "ASSIGN"}

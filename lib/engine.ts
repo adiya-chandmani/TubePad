@@ -1,8 +1,32 @@
-import { Pad } from "./types";
+import { DEFAULT_SYNTH, Pad } from "./types";
 import { TubePadPlayer } from "./youtube";
-import { PlayHandle, playBuffer, getCachedBuffer, cacheBuffer, getReversedBuffer } from "./audio";
+import {
+  PlayHandle,
+  SynthParams,
+  SynthVoice,
+  playBuffer,
+  getCachedBuffer,
+  cacheBuffer,
+  getReversedBuffer,
+  startSynthVoice,
+} from "./audio";
 import { loadAsset } from "./db";
 import { BUILTIN_SOUNDS, renderBuiltinSound } from "./builtinSounds";
+
+function synthParamsFromPad(pad: Pad, volume: number, pan: number): SynthParams {
+  return {
+    waveform: pad.synthWaveform ?? DEFAULT_SYNTH.waveform,
+    note: pad.synthNote ?? DEFAULT_SYNTH.note,
+    attack: pad.synthAttack ?? DEFAULT_SYNTH.attack,
+    decay: pad.synthDecay ?? DEFAULT_SYNTH.decay,
+    sustain: pad.synthSustain ?? DEFAULT_SYNTH.sustain,
+    release: pad.synthRelease ?? DEFAULT_SYNTH.release,
+    filterCutoff: pad.synthFilterCutoff ?? DEFAULT_SYNTH.filterCutoff,
+    filterQ: pad.synthFilterQ ?? DEFAULT_SYNTH.filterQ,
+    volume,
+    pan,
+  };
+}
 
 // ponytail: oneshot+loop has no natural "reached the end" stop condition,
 // so a second (non-repeat) press of the same pad toggles it off. hold+loop
@@ -38,6 +62,7 @@ export class PlaybackEngine {
   private ytPoll: YoutubePollState | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private audioHandles = new Map<string, PlayHandle>();
+  private synthVoices = new Map<string, SynthVoice>();
   private oneshotLoopActive = new Set<string>();
 
   setYoutubePlayer(p: TubePadPlayer | null) {
@@ -82,6 +107,29 @@ export class PlaybackEngine {
 
   async triggerDown(pad: Pad, opts: { repeat: boolean }) {
     if (pad.end <= pad.start && pad.sourceType === "youtube") return;
+
+    if (pad.sourceType === "synth") {
+      if (opts.repeat) return;
+      if (pad.mode === "oneshot" && pad.loop) {
+        const active = this.synthVoices.get(pad.id);
+        if (active) {
+          active.release();
+          this.synthVoices.delete(pad.id);
+          return;
+        }
+      }
+      const voice = startSynthVoice(synthParamsFromPad(pad, pad.volume, pad.pan));
+      this.synthVoices.set(pad.id, voice);
+      if (pad.mode === "oneshot" && !pad.loop) {
+        const holdMs = ((pad.synthAttack ?? DEFAULT_SYNTH.attack) + (pad.synthDecay ?? DEFAULT_SYNTH.decay) + 0.15) * 1000;
+        setTimeout(() => {
+          this.synthVoices.get(pad.id)?.release();
+          this.synthVoices.delete(pad.id);
+        }, holdMs);
+      }
+      return;
+    }
+
     if (pad.sourceType === "youtube") {
       if (pad.mode === "oneshot") {
         if (opts.repeat) return; // §49 ignore OS key-repeat
@@ -134,6 +182,9 @@ export class PlaybackEngine {
     if (pad.mode !== "hold") return;
     if (pad.sourceType === "youtube") {
       this.stopYoutube(pad.id);
+    } else if (pad.sourceType === "synth") {
+      this.synthVoices.get(pad.id)?.release();
+      this.synthVoices.delete(pad.id);
     } else {
       this.audioHandles.get(pad.id)?.stop();
       this.audioHandles.delete(pad.id);
@@ -148,7 +199,31 @@ export class PlaybackEngine {
     audioAssetId?: string;
     pan?: number;
     reverse?: boolean;
+    synthWaveform?: Pad["synthWaveform"];
+    synthNote?: number;
+    synthAttack?: number;
+    synthDecay?: number;
+    synthSustain?: number;
+    synthRelease?: number;
+    synthFilterCutoff?: number;
+    synthFilterQ?: number;
   }) {
+    if (source.sourceType === "synth") {
+      const voice = startSynthVoice({
+        waveform: source.synthWaveform ?? DEFAULT_SYNTH.waveform,
+        note: source.synthNote ?? DEFAULT_SYNTH.note,
+        attack: source.synthAttack ?? DEFAULT_SYNTH.attack,
+        decay: source.synthDecay ?? DEFAULT_SYNTH.decay,
+        sustain: source.synthSustain ?? DEFAULT_SYNTH.sustain,
+        release: source.synthRelease ?? DEFAULT_SYNTH.release,
+        filterCutoff: source.synthFilterCutoff ?? DEFAULT_SYNTH.filterCutoff,
+        filterQ: source.synthFilterQ ?? DEFAULT_SYNTH.filterQ,
+        volume: 1,
+        pan: source.pan ?? 0,
+      });
+      setTimeout(() => voice.release(), 500);
+      return;
+    }
     if (source.sourceType === "youtube" && this.ytPlayer) {
       const { player } = this.ytPlayer;
       player.setPlaybackRate(source.rate);
@@ -179,6 +254,8 @@ export class PlaybackEngine {
     this.ytPlayer?.player.pauseVideo();
     this.audioHandles.forEach((h) => h.stop());
     this.audioHandles.clear();
+    this.synthVoices.forEach((v) => v.release());
+    this.synthVoices.clear();
     this.oneshotLoopActive.clear();
   }
 }

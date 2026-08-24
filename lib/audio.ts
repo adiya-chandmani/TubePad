@@ -87,6 +87,79 @@ export function playBuffer(
   };
 }
 
+// --- pure synth voice: live oscillator, no sample buffer at all ---------
+
+export interface SynthParams {
+  waveform: OscillatorType;
+  note: number; // MIDI note number
+  attack: number;
+  decay: number;
+  sustain: number; // 0..1
+  release: number;
+  filterCutoff: number;
+  filterQ: number;
+  volume: number;
+  pan: number;
+}
+
+export function noteToFrequency(note: number): number {
+  return 440 * Math.pow(2, (note - 69) / 12);
+}
+
+export interface SynthVoice {
+  /** Begins the release ramp; the oscillator actually stops `release`
+   * seconds later. Calling it twice is a no-op. */
+  release: () => void;
+}
+
+export function startSynthVoice(params: SynthParams): SynthVoice {
+  const { ctx, master } = getCtx();
+  resumeAudio();
+
+  const osc = ctx.createOscillator();
+  osc.type = params.waveform;
+  osc.frequency.value = noteToFrequency(params.note);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = params.filterCutoff;
+  filter.Q.value = params.filterQ;
+
+  const gain = ctx.createGain();
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = params.pan;
+
+  const now = ctx.currentTime;
+  const attack = Math.max(params.attack, 0.005);
+  const decay = Math.max(params.decay, 0.005);
+  const peak = Math.max(params.volume, 0.0001);
+  const sustainLevel = Math.max(peak * params.sustain, 0.0001);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(peak, now + attack);
+  gain.gain.exponentialRampToValueAtTime(sustainLevel, now + attack + decay);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(panner);
+  panner.connect(master);
+  osc.start(now);
+
+  let released = false;
+  return {
+    release: () => {
+      if (released) return;
+      released = true;
+      const t = ctx.currentTime;
+      const releaseTime = Math.max(params.release, 0.02);
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + releaseTime);
+      osc.stop(t + releaseTime + 0.02);
+    },
+  };
+}
+
 const reversedCache = new Map<string, AudioBuffer>();
 
 /** Reversed copy of a buffer, cached per source id. A sample trimmed to

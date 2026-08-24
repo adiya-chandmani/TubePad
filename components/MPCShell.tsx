@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { isPadEmpty, PAD_IDS, RATE_STEPS, RecordedEvent, SEQUENCER_STEPS } from "@/lib/types";
+import { DEFAULT_SYNTH, isPadEmpty, Pad, PAD_IDS, RATE_STEPS, RecordedEvent, SEQUENCER_STEPS } from "@/lib/types";
 import { createPlayer, extractVideoId, TubePadPlayer, YT_STATE } from "@/lib/youtube";
 import { PlaybackEngine } from "@/lib/engine";
 import { setMasterVolume, decodeBlob, cacheBuffer } from "@/lib/audio";
@@ -78,6 +78,16 @@ export function MPCShell() {
   const editMode = selectedPad ? selectedPad.mode : state.pending.mode;
   const editName = selectedPad ? selectedPad.name : state.pending.name;
   const editSourceType = selectedPad ? selectedPad.sourceType : state.pending.sourceType;
+  const editSynthWaveform = selectedPad ? selectedPad.synthWaveform ?? DEFAULT_SYNTH.waveform : state.pending.synthWaveform;
+  const editSynthNote = selectedPad ? selectedPad.synthNote ?? DEFAULT_SYNTH.note : state.pending.synthNote;
+  const editSynthAttack = selectedPad ? selectedPad.synthAttack ?? DEFAULT_SYNTH.attack : state.pending.synthAttack;
+  const editSynthDecay = selectedPad ? selectedPad.synthDecay ?? DEFAULT_SYNTH.decay : state.pending.synthDecay;
+  const editSynthSustain = selectedPad ? selectedPad.synthSustain ?? DEFAULT_SYNTH.sustain : state.pending.synthSustain;
+  const editSynthRelease = selectedPad ? selectedPad.synthRelease ?? DEFAULT_SYNTH.release : state.pending.synthRelease;
+  const editSynthFilterCutoff = selectedPad
+    ? selectedPad.synthFilterCutoff ?? DEFAULT_SYNTH.filterCutoff
+    : state.pending.synthFilterCutoff;
+  const editSynthFilterQ = selectedPad ? selectedPad.synthFilterQ ?? DEFAULT_SYNTH.filterQ : state.pending.synthFilterQ;
 
   const patchEdit = useCallback(
     (patch: {
@@ -90,6 +100,14 @@ export function MPCShell() {
       loop?: boolean;
       mode?: "oneshot" | "hold";
       name?: string;
+      synthWaveform?: Pad["synthWaveform"];
+      synthNote?: number;
+      synthAttack?: number;
+      synthDecay?: number;
+      synthSustain?: number;
+      synthRelease?: number;
+      synthFilterCutoff?: number;
+      synthFilterQ?: number;
     }) => {
       if (state.selectedPadId) {
         const padPatch: Record<string, unknown> = { ...patch };
@@ -583,6 +601,7 @@ export function MPCShell() {
               end={editEnd}
               armed={state.armed}
               disabled={!ytPlayer}
+              hideTimeline={editSourceType === "synth"}
               onSetStart={() => patchEdit({ start: ytPlayer?.player.getCurrentTime() ?? 0 })}
               onSetEnd={() => patchEdit({ end: ytPlayer?.player.getCurrentTime() ?? 0 })}
               onNudgeStart={(delta) => patchEdit({ start: Math.max(0, editStart + delta) })}
@@ -596,6 +615,14 @@ export function MPCShell() {
                   pan: editPan,
                   reverse: editReverse,
                   audioAssetId: selectedPad?.audioAssetId ?? state.pending.audioAssetId,
+                  synthWaveform: editSynthWaveform,
+                  synthNote: editSynthNote,
+                  synthAttack: editSynthAttack,
+                  synthDecay: editSynthDecay,
+                  synthSustain: editSynthSustain,
+                  synthRelease: editSynthRelease,
+                  synthFilterCutoff: editSynthFilterCutoff,
+                  synthFilterQ: editSynthFilterQ,
                 })
               }
               onAssign={() => dispatch({ type: state.armed ? "DISARM" : "ARM" })}
@@ -632,6 +659,14 @@ export function MPCShell() {
                 reverse: editReverse,
                 loop: editLoop,
                 mode: editMode,
+                synthWaveform: editSynthWaveform,
+                synthNote: editSynthNote,
+                synthAttack: editSynthAttack,
+                synthDecay: editSynthDecay,
+                synthSustain: editSynthSustain,
+                synthRelease: editSynthRelease,
+                synthFilterCutoff: editSynthFilterCutoff,
+                synthFilterQ: editSynthFilterQ,
               }}
               onChange={(patch) => patchEdit(patch)}
               onDelete={
@@ -652,6 +687,25 @@ export function MPCShell() {
                     name,
                     pan: 0,
                     reverse: false,
+                  },
+                });
+                dispatch({ type: "ARM" });
+              }}
+              onNewSynth={() => {
+                dispatch({
+                  type: "SET_PENDING",
+                  patch: {
+                    sourceType: "synth",
+                    name: "Synth",
+                    pan: 0,
+                    synthWaveform: DEFAULT_SYNTH.waveform,
+                    synthNote: DEFAULT_SYNTH.note,
+                    synthAttack: DEFAULT_SYNTH.attack,
+                    synthDecay: DEFAULT_SYNTH.decay,
+                    synthSustain: DEFAULT_SYNTH.sustain,
+                    synthRelease: DEFAULT_SYNTH.release,
+                    synthFilterCutoff: DEFAULT_SYNTH.filterCutoff,
+                    synthFilterQ: DEFAULT_SYNTH.filterQ,
                   },
                 });
                 dispatch({ type: "ARM" });
