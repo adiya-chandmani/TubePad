@@ -5,7 +5,7 @@ import { BUILTIN_SOUNDS, BuiltinCategory } from "@/lib/builtinSounds";
 import { decodeBlob } from "@/lib/audio";
 import { saveAsset } from "@/lib/db";
 
-const CATEGORIES: BuiltinCategory[] = ["DRUMS", "FX", "BASS", "VOCAL"];
+const CATEGORIES: BuiltinCategory[] = ["DRUMS", "BASS", "MELODY", "VOCAL", "FX"];
 export const BUILTIN_DRAG_TYPE = "application/x-tubepad-builtin";
 
 export function SampleLibrary({
