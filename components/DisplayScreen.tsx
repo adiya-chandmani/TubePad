@@ -19,10 +19,16 @@ export function DisplayScreen() {
           <div className="text-lg leading-tight">
             {formatTime(pad.start)} → {formatTime(pad.end)}
           </div>
-          <div className="flex gap-4 text-lg leading-tight opacity-90">
-            <span>RATE {pad.playbackRate.toFixed(2)}x</span>
-            <span>MODE {pad.mode === "oneshot" ? "ONE SHOT" : "HOLD"}</span>
-            <span>LOOP {pad.loop ? "ON" : "OFF"}</span>
+          <div className="grid grid-cols-2 gap-x-3 text-lg leading-tight opacity-90">
+            <span className="whitespace-nowrap">RATE {pad.playbackRate.toFixed(2)}x</span>
+            <span className="whitespace-nowrap">MODE {pad.mode === "oneshot" ? "ONE SHOT" : "HOLD"}</span>
+            <span className="whitespace-nowrap">LOOP {pad.loop ? "ON" : "OFF"}</span>
+            {pad.sourceType !== "youtube" && (
+              <span className="whitespace-nowrap">
+                PAN {pad.pan === 0 ? "C" : pad.pan < 0 ? `L${Math.round(-pad.pan * 100)}` : `R${Math.round(pad.pan * 100)}`}
+                {pad.reverse ? " REV" : ""}
+              </span>
+            )}
           </div>
         </>
       ) : (

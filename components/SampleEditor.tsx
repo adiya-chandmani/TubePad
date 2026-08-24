@@ -101,7 +101,7 @@ export function SampleEditor({
       </label>
 
       <div className="flex gap-4">
-        <label className="flex items-center gap-2 font-pixel text-base text-cream/70">
+        <label className="flex items-center gap-2 font-pixel text-base text-cream/70 whitespace-nowrap">
           <input
             type="checkbox"
             checked={values.loop}
@@ -110,7 +110,7 @@ export function SampleEditor({
           LOOP
         </label>
 
-        <label className={`flex items-center gap-2 font-pixel text-base ${supportsPanReverse ? "text-cream/70" : "text-cream/30"}`}>
+        <label className={`flex items-center gap-2 font-pixel text-base whitespace-nowrap ${supportsPanReverse ? "text-cream/70" : "text-cream/30"}`}>
           <input
             type="checkbox"
             checked={values.reverse}
@@ -119,22 +119,22 @@ export function SampleEditor({
           />
           REVERSE
         </label>
+      </div>
 
-        <div className="flex items-center gap-1 font-pixel text-base text-cream/70">
-          MODE
-          <button
-            onClick={() => onChange({ mode: "oneshot" })}
-            className={`rounded-none border-2 border-black px-2 py-0.5 ${values.mode === "oneshot" ? "bg-gold text-navyDeep" : "bg-black/30"}`}
-          >
-            ONE SHOT
-          </button>
-          <button
-            onClick={() => onChange({ mode: "hold" })}
-            className={`rounded-none border-2 border-black px-2 py-0.5 ${values.mode === "hold" ? "bg-gold text-navyDeep" : "bg-black/30"}`}
-          >
-            HOLD
-          </button>
-        </div>
+      <div className="flex items-center gap-1 font-pixel text-base text-cream/70">
+        MODE
+        <button
+          onClick={() => onChange({ mode: "oneshot" })}
+          className={`whitespace-nowrap rounded-none border-2 border-black px-2 py-0.5 ${values.mode === "oneshot" ? "bg-gold text-navyDeep" : "bg-black/30"}`}
+        >
+          ONE SHOT
+        </button>
+        <button
+          onClick={() => onChange({ mode: "hold" })}
+          className={`whitespace-nowrap rounded-none border-2 border-black px-2 py-0.5 ${values.mode === "hold" ? "bg-gold text-navyDeep" : "bg-black/30"}`}
+        >
+          HOLD
+        </button>
       </div>
     </div>
   );

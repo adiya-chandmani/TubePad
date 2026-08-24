@@ -194,9 +194,21 @@ export function MPCShell() {
     const keyToPad = new Map<string, string>();
     for (const id of Object.keys(state.project.pads)) keyToPad.set(id.toLowerCase(), id);
 
+    // Only a genuine typing field should eat pad-trigger keys. Checkboxes,
+    // range sliders, and buttons keep DOM focus after a click but a stray
+    // letter key on them shouldn't swallow the next pad press — that read
+    // as "reverse got stuck on" when it was really just focus trapped on
+    // the checkbox from the previous click.
+    function isTypingTarget(target: HTMLElement): boolean {
+      if (target.tagName === "TEXTAREA") return true;
+      if (target.tagName !== "INPUT") return false;
+      const type = (target as HTMLInputElement).type;
+      return type === "text" || type === "search" || type === "email" || type === "url" || type === "number";
+    }
+
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (isTypingTarget(target)) return;
 
       const key = e.key.toLowerCase();
 
@@ -272,7 +284,7 @@ export function MPCShell() {
 
     function onKeyUp(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (isTypingTarget(target)) return;
       const padId = keyToPad.get(e.key.toLowerCase());
       if (padId) handlePadUp(padId);
     }
