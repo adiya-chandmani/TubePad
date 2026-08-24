@@ -2,6 +2,8 @@
 
 import { formatTime } from "@/lib/format";
 
+const NUDGE_STEP = 0.01; // 10ms — the PRD's K1/K2 fine-adjust knobs, as nudge buttons
+
 export function TransportControls({
   start,
   end,
@@ -9,6 +11,8 @@ export function TransportControls({
   disabled,
   onSetStart,
   onSetEnd,
+  onNudgeStart,
+  onNudgeEnd,
   onPreview,
   onAssign,
 }: {
@@ -18,6 +22,8 @@ export function TransportControls({
   disabled: boolean;
   onSetStart: () => void;
   onSetEnd: () => void;
+  onNudgeStart: (deltaSeconds: number) => void;
+  onNudgeEnd: (deltaSeconds: number) => void;
   onPreview: () => void;
   onAssign: () => void;
 }) {
@@ -26,11 +32,13 @@ export function TransportControls({
   return (
     <div className="flex flex-col gap-1.5 shrink-0">
       <div className="flex justify-between font-pixel text-lg text-cream/90">
-        <span>
+        <span className="flex items-center gap-1">
           START <span className="text-gold">{formatTime(start)}</span>
+          <NudgeButtons disabled={disabled} onNudge={onNudgeStart} />
         </span>
-        <span>
+        <span className="flex items-center gap-1">
           END <span className="text-gold">{formatTime(end)}</span>
+          <NudgeButtons disabled={disabled} onNudge={onNudgeEnd} />
         </span>
         <span className="text-cream/50">{duration.toFixed(3)}s</span>
       </div>
@@ -53,6 +61,31 @@ export function TransportControls({
         </button>
       </div>
     </div>
+  );
+}
+
+function NudgeButtons({ disabled, onNudge }: { disabled: boolean; onNudge: (delta: number) => void }) {
+  return (
+    <span className="flex gap-0.5 text-sm">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onNudge(-NUDGE_STEP)}
+        className="border border-black bg-cream px-1 text-navyDeep disabled:opacity-30"
+        title={`-${NUDGE_STEP * 1000}ms`}
+      >
+        −
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onNudge(NUDGE_STEP)}
+        className="border border-black bg-cream px-1 text-navyDeep disabled:opacity-30"
+        title={`+${NUDGE_STEP * 1000}ms`}
+      >
+        +
+      </button>
+    </span>
   );
 }
 

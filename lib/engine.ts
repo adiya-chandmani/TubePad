@@ -1,6 +1,6 @@
 import { Pad } from "./types";
 import { TubePadPlayer } from "./youtube";
-import { PlayHandle, playBuffer, getCachedBuffer, cacheBuffer } from "./audio";
+import { PlayHandle, playBuffer, getCachedBuffer, cacheBuffer, getReversedBuffer } from "./audio";
 import { loadAsset } from "./db";
 import { BUILTIN_SOUNDS, renderBuiltinSound } from "./builtinSounds";
 
@@ -108,14 +108,23 @@ export class PlaybackEngine {
         return;
       }
     }
-    const buffer = await getPadBuffer(pad);
+    let buffer = await getPadBuffer(pad);
     if (!buffer) return;
     cacheBuffer(pad.audioAssetId!, buffer);
+    let { start, end } = pad;
+    if (pad.reverse) {
+      const source = buffer;
+      buffer = getReversedBuffer(`${pad.audioAssetId}:rev`, source);
+      const dur = source.duration;
+      start = dur - pad.end;
+      end = dur - pad.start;
+    }
     const handle = playBuffer(buffer, {
-      start: pad.start,
-      end: pad.end,
+      start,
+      end,
       rate: pad.playbackRate,
       volume: pad.volume,
+      pan: pad.pan,
       loop: pad.loop,
     });
     this.audioHandles.set(pad.id, handle);
@@ -131,7 +140,15 @@ export class PlaybackEngine {
     }
   }
 
-  async preview(source: { sourceType: Pad["sourceType"]; start: number; end: number; rate: number; audioAssetId?: string }) {
+  async preview(source: {
+    sourceType: Pad["sourceType"];
+    start: number;
+    end: number;
+    rate: number;
+    audioAssetId?: string;
+    pan?: number;
+    reverse?: boolean;
+  }) {
     if (source.sourceType === "youtube" && this.ytPlayer) {
       const { player } = this.ytPlayer;
       player.setPlaybackRate(source.rate);
@@ -144,10 +161,16 @@ export class PlaybackEngine {
     }
     if (source.audioAssetId) {
       const sound = BUILTIN_SOUNDS.find((s) => s.id === source.audioAssetId);
-      const buffer = sound ? await renderBuiltinSound(sound) : getCachedBuffer(source.audioAssetId);
-      if (buffer) {
-        playBuffer(buffer, { start: source.start, end: source.end, rate: source.rate, volume: 1, loop: false });
+      let buffer = sound ? await renderBuiltinSound(sound) : getCachedBuffer(source.audioAssetId);
+      if (!buffer) return;
+      let { start, end } = source;
+      if (source.reverse) {
+        const dur = buffer.duration;
+        buffer = getReversedBuffer(`${source.audioAssetId}:rev`, buffer);
+        start = dur - source.end;
+        end = dur - source.start;
       }
+      playBuffer(buffer, { start, end, rate: source.rate, volume: 1, pan: source.pan, loop: false });
     }
   }
 

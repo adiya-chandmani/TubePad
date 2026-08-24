@@ -9,7 +9,7 @@ import {
   useReducer,
   useRef,
 } from "react";
-import { Pad, PadMode, Project, newProject } from "./types";
+import { Pad, PadMode, Project, emptyPad, newProject } from "./types";
 import { saveProject, loadProject, LAST_PROJECT_KEY } from "./db";
 
 interface Pending {
@@ -17,6 +17,8 @@ interface Pending {
   end: number;
   rate: number;
   volume: number;
+  pan: number;
+  reverse: boolean;
   loop: boolean;
   mode: PadMode;
   name: string;
@@ -29,11 +31,19 @@ const initialPending: Pending = {
   end: 0,
   rate: 1,
   volume: 1,
+  pan: 0,
+  reverse: false,
   loop: false,
   mode: "oneshot",
   name: "",
   sourceType: "youtube",
 };
+
+const UNDO_STACK_LIMIT = 20;
+interface UndoEntry {
+  padId: string;
+  prevPad: Pad;
+}
 
 interface State {
   project: Project;
@@ -43,6 +53,7 @@ interface State {
   currentTime: number;
   duration: number;
   hydrated: boolean;
+  history: UndoEntry[];
 }
 
 type Action =
@@ -57,14 +68,21 @@ type Action =
   | { type: "SELECT_PAD"; padId: string | null }
   | { type: "UPDATE_PAD"; padId: string; patch: Partial<Pad> }
   | { type: "DELETE_PAD"; padId: string }
+  | { type: "UNDO" }
+  | { type: "CLEAR_YOUTUBE_PADS" }
   | { type: "SET_MASTER_VOLUME"; value: number }
   | { type: "RENAME_PROJECT"; name: string }
   | { type: "NEW_PROJECT" };
 
+function pushHistory(history: UndoEntry[], padId: string, prevPad: Pad): UndoEntry[] {
+  const next = [...history, { padId, prevPad }];
+  return next.length > UNDO_STACK_LIMIT ? next.slice(next.length - UNDO_STACK_LIMIT) : next;
+}
+
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "HYDRATE":
-      return { ...state, project: action.project, hydrated: true };
+      return { ...state, project: action.project, hydrated: true, history: [], selectedPadId: null, armed: false };
     case "LOAD_VIDEO":
       return {
         ...state,
@@ -85,6 +103,7 @@ function reducer(state: State, action: Action): State {
       return { ...state, armed: false };
     case "ASSIGN_PENDING_TO_PAD": {
       const p = state.pending;
+      const prevPad = state.project.pads[action.padId];
       const pad: Pad = {
         id: action.padId,
         name: p.name || action.padId,
@@ -96,6 +115,8 @@ function reducer(state: State, action: Action): State {
         end: p.end,
         playbackRate: p.rate,
         volume: p.volume,
+        pan: p.pan,
+        reverse: p.reverse,
         loop: p.loop,
         mode: p.mode,
       };
@@ -108,6 +129,7 @@ function reducer(state: State, action: Action): State {
         armed: false,
         selectedPadId: action.padId,
         pending: { ...initialPending, rate: p.rate },
+        history: prevPad ? pushHistory(state.history, action.padId, prevPad) : state.history,
       };
     }
     case "ASSIGN_ASSET_TO_PAD": {
@@ -120,6 +142,7 @@ function reducer(state: State, action: Action): State {
           pads: { ...state.project.pads, [action.padId]: pad },
         },
         selectedPadId: action.padId,
+        history: existing ? pushHistory(state.history, action.padId, existing) : state.history,
       };
     }
     case "SELECT_PAD":
@@ -141,32 +164,42 @@ function reducer(state: State, action: Action): State {
     case "DELETE_PAD": {
       const existing = state.project.pads[action.padId];
       if (!existing) return state;
-      const cleared: Pad = {
-        id: action.padId,
-        name: "",
-        sourceType: "youtube",
-        start: 0,
-        end: 0,
-        playbackRate: 1,
-        volume: 1,
-        loop: false,
-        mode: "oneshot",
-      };
       return {
         ...state,
         project: {
           ...state.project,
-          pads: { ...state.project.pads, [action.padId]: cleared },
+          pads: { ...state.project.pads, [action.padId]: emptyPad(action.padId) },
         },
         selectedPadId: state.selectedPadId === action.padId ? null : state.selectedPadId,
+        history: pushHistory(state.history, action.padId, existing),
       };
+    }
+    case "UNDO": {
+      if (state.history.length === 0) return state;
+      const entry = state.history[state.history.length - 1];
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          pads: { ...state.project.pads, [entry.padId]: entry.prevPad },
+        },
+        selectedPadId: entry.padId,
+        history: state.history.slice(0, -1),
+      };
+    }
+    case "CLEAR_YOUTUBE_PADS": {
+      const pads = { ...state.project.pads };
+      for (const [id, pad] of Object.entries(pads)) {
+        if (pad.sourceType === "youtube" && pad.end > pad.start) pads[id] = emptyPad(id);
+      }
+      return { ...state, project: { ...state.project, pads } };
     }
     case "SET_MASTER_VOLUME":
       return { ...state, project: { ...state.project, masterVolume: action.value } };
     case "RENAME_PROJECT":
       return { ...state, project: { ...state.project, name: action.name } };
     case "NEW_PROJECT":
-      return { ...state, project: newProject(), selectedPadId: null, armed: false };
+      return { ...state, project: newProject(), selectedPadId: null, armed: false, history: [] };
     default:
       return state;
   }
@@ -188,6 +221,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     currentTime: 0,
     duration: 0,
     hydrated: false,
+    history: [],
   });
 
   useEffect(() => {

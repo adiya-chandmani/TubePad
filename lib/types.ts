@@ -13,6 +13,8 @@ export interface Pad {
   end: number;
   playbackRate: number;
   volume: number; // 0..1
+  pan: number; // -1 (left) .. 1 (right). YouTube pads ignore this — the IFrame API has no pan control.
+  reverse: boolean; // builtin/upload only, same reason.
   loop: boolean;
   mode: PadMode;
 }
@@ -47,6 +49,8 @@ export function emptyPad(id: string): Pad {
     end: 0,
     playbackRate: 1,
     volume: 1,
+    pan: 0,
+    reverse: false,
     loop: false,
     mode: "oneshot",
   };

@@ -58,16 +58,34 @@ export interface TubePadPlayer {
   destroy(): void;
 }
 
+// https://developers.google.com/youtube/iframe_api_reference#onError
+export function describeYoutubeError(code: number): string {
+  switch (code) {
+    case 2:
+      return "Invalid video URL.";
+    case 5:
+      return "This video can't be played in an HTML5 player.";
+    case 100:
+      return "Video not found (removed or private).";
+    case 101:
+    case 150:
+      return "The video owner doesn't allow embedding.";
+    default:
+      return "Couldn't load this video.";
+  }
+}
+
 export async function createPlayer(
   elementId: string,
   videoId: string,
   callbacks: {
     onReady?: (title: string, duration: number) => void;
     onStateChange?: (state: number) => void;
+    onError?: (code: number) => void;
   }
 ): Promise<TubePadPlayer> {
   await loadApi();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const YTNS = (window as unknown as { YT: any }).YT;
     const player = new YTNS.Player(elementId, {
       videoId,
@@ -88,6 +106,10 @@ export async function createPlayer(
         },
         onStateChange: (e: YT.OnStateChangeEvent) => {
           callbacks.onStateChange?.(e.data);
+        },
+        onError: (e: { data: number }) => {
+          callbacks.onError?.(e.data);
+          reject(new Error(describeYoutubeError(e.data)));
         },
       },
     });

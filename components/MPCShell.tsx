@@ -6,7 +6,7 @@ import { isPadEmpty, RATE_STEPS } from "@/lib/types";
 import { createPlayer, extractVideoId, TubePadPlayer, YT_STATE } from "@/lib/youtube";
 import { PlaybackEngine } from "@/lib/engine";
 import { setMasterVolume, decodeBlob, cacheBuffer } from "@/lib/audio";
-import { saveAsset } from "@/lib/db";
+import { saveAsset, isStorageAvailable } from "@/lib/db";
 import { BUILTIN_SOUNDS, renderBuiltinSound } from "@/lib/builtinSounds";
 import { BUILTIN_DRAG_TYPE } from "./SampleLibrary";
 
@@ -36,12 +36,20 @@ export function MPCShell() {
   const [currentTime, setCurrentTime] = useState(0);
   const [pressed, setPressed] = useState<Set<string>>(new Set());
   const isPlayingRef = useRef(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // db.ts's availability check reads `typeof indexedDB` — always "available"
+  // on the server, so this can't be decided during the SSR render or it
+  // mismatches on hydration. Defer to a client-only effect instead.
+  const [storageAvailable, setStorageAvailable] = useState(true);
+  useEffect(() => setStorageAvailable(isStorageAvailable()), []);
 
   const selectedPad = state.selectedPadId ? state.project.pads[state.selectedPadId] : null;
   const editStart = selectedPad ? selectedPad.start : state.pending.start;
   const editEnd = selectedPad ? selectedPad.end : state.pending.end;
   const editRate = selectedPad ? selectedPad.playbackRate : state.pending.rate;
   const editVolume = selectedPad ? selectedPad.volume : state.pending.volume;
+  const editPan = selectedPad ? selectedPad.pan : state.pending.pan;
+  const editReverse = selectedPad ? selectedPad.reverse : state.pending.reverse;
   const editLoop = selectedPad ? selectedPad.loop : state.pending.loop;
   const editMode = selectedPad ? selectedPad.mode : state.pending.mode;
   const editName = selectedPad ? selectedPad.name : state.pending.name;
@@ -53,6 +61,8 @@ export function MPCShell() {
       end?: number;
       rate?: number;
       volume?: number;
+      pan?: number;
+      reverse?: boolean;
       loop?: boolean;
       mode?: "oneshot" | "hold";
       name?: string;
@@ -75,21 +85,46 @@ export function MPCShell() {
   async function handleLoadUrl(url: string) {
     const videoId = extractVideoId(url);
     if (!videoId) {
-      alert("Could not read a video id from that URL.");
+      setLoadError("Could not read a video id from that URL.");
       return;
     }
+
+    // Pads store start/end as raw seconds into whatever video was loaded
+    // when they were assigned — swapping the video without clearing them
+    // would seek YouTube pads to the wrong moments in a different video.
+    const hasYoutubePads = Object.values(state.project.pads).some(
+      (p) => p.sourceType === "youtube" && p.end > p.start
+    );
+    if (state.project.videoId && state.project.videoId !== videoId && hasYoutubePads) {
+      const proceed = confirm(
+        "This project has YouTube pads keyed to the current video. Loading a different video will clear them (builtin/upload pads are unaffected). Continue?"
+      );
+      if (!proceed) return;
+      dispatch({ type: "CLEAR_YOUTUBE_PADS" });
+    }
+
+    setLoadError(null);
     ytPlayer?.destroy();
-    const player = await createPlayer("tubepad-yt-player", videoId, {
-      onReady: (title, duration) => {
-        dispatch({ type: "LOAD_VIDEO", videoId, title, duration });
-      },
-      onStateChange: (s) => {
-        if (s === YT_STATE.PLAYING) isPlayingRef.current = true;
-        if (s === YT_STATE.PAUSED || s === YT_STATE.ENDED) isPlayingRef.current = false;
-      },
-    });
-    engineRef.current.setYoutubePlayer(player);
-    setYtPlayer(player);
+    try {
+      const player = await createPlayer("tubepad-yt-player", videoId, {
+        onReady: (title, duration) => {
+          dispatch({ type: "LOAD_VIDEO", videoId, title, duration });
+        },
+        onStateChange: (s) => {
+          if (s === YT_STATE.PLAYING) isPlayingRef.current = true;
+          if (s === YT_STATE.PAUSED || s === YT_STATE.ENDED) isPlayingRef.current = false;
+        },
+        onError: (code) => {
+          // createPlayer also rejects on error; this covers errors that
+          // arrive after the player already resolved (e.g. a later cue).
+          void code;
+        },
+      });
+      engineRef.current.setYoutubePlayer(player);
+      setYtPlayer(player);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Couldn't load this video.");
+    }
   }
 
   // Pre-render every builtin sound once at startup so the first press of
@@ -164,6 +199,13 @@ export function MPCShell() {
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
       const key = e.key.toLowerCase();
+
+      if ((e.metaKey || e.ctrlKey) && key === "z") {
+        e.preventDefault();
+        dispatch({ type: "UNDO" });
+        return;
+      }
+
       const padId = keyToPad.get(key);
       if (padId) {
         e.preventDefault();
@@ -294,6 +336,11 @@ export function MPCShell() {
       <div className="hidden max-[900px]:block fixed inset-x-0 top-0 bg-gold text-navyDeep text-center text-xs py-1 z-30 font-pixel">
         TubePad works best on desktop. Open this site on a computer for the full MPC experience.
       </div>
+      {!storageAvailable && (
+        <div className="fixed inset-x-0 bottom-0 bg-red text-cream text-center text-xs py-1 z-30 font-pixel">
+          Storage unavailable (private browsing?) — your project won't be saved after this tab closes.
+        </div>
+      )}
 
       <div className="relative w-full max-w-6xl h-full max-h-[900px] flex flex-col rounded-none bg-navyDeep p-3 border-4 border-gold shadow-pixel">
         <div className="flex items-center justify-between mb-3 shrink-0 gap-3">
@@ -321,6 +368,7 @@ export function MPCShell() {
               title={state.project.videoTitle}
               currentTime={currentTime}
               duration={state.duration}
+              error={loadError}
               onLoad={handleLoadUrl}
             />
 
@@ -331,12 +379,17 @@ export function MPCShell() {
               disabled={!ytPlayer}
               onSetStart={() => patchEdit({ start: ytPlayer?.player.getCurrentTime() ?? 0 })}
               onSetEnd={() => patchEdit({ end: ytPlayer?.player.getCurrentTime() ?? 0 })}
+              onNudgeStart={(delta) => patchEdit({ start: Math.max(0, editStart + delta) })}
+              onNudgeEnd={(delta) => patchEdit({ end: Math.max(editStart, editEnd + delta) })}
               onPreview={() =>
                 engineRef.current.preview({
                   sourceType: editSourceType,
                   start: editStart,
                   end: editEnd,
                   rate: editRate,
+                  pan: editPan,
+                  reverse: editReverse,
+                  audioAssetId: selectedPad?.audioAssetId ?? state.pending.audioAssetId,
                 })
               }
               onAssign={() => dispatch({ type: state.armed ? "DISARM" : "ARM" })}
@@ -354,7 +407,16 @@ export function MPCShell() {
             <DisplayScreen />
             <SampleEditor
               editingPadLabel={state.selectedPadId}
-              values={{ name: editName, rate: editRate, volume: editVolume, loop: editLoop, mode: editMode }}
+              sourceType={editSourceType}
+              values={{
+                name: editName,
+                rate: editRate,
+                volume: editVolume,
+                pan: editPan,
+                reverse: editReverse,
+                loop: editLoop,
+                mode: editMode,
+              }}
               onChange={(patch) => patchEdit(patch)}
               onDelete={
                 state.selectedPadId
@@ -366,7 +428,15 @@ export function MPCShell() {
               onImportStaged={(assetId, name, duration) => {
                 dispatch({
                   type: "SET_PENDING",
-                  patch: { sourceType: "upload", audioAssetId: assetId, start: 0, end: duration, name },
+                  patch: {
+                    sourceType: "upload",
+                    audioAssetId: assetId,
+                    start: 0,
+                    end: duration,
+                    name,
+                    pan: 0,
+                    reverse: false,
+                  },
                 });
                 dispatch({ type: "ARM" });
               }}

@@ -1,26 +1,33 @@
 "use client";
 
-import { RATE_STEPS } from "@/lib/types";
+import { RATE_STEPS, PadSource } from "@/lib/types";
 
 export interface EditorValues {
   name: string;
   rate: number;
   volume: number;
+  pan: number;
+  reverse: boolean;
   loop: boolean;
   mode: "oneshot" | "hold";
 }
 
 export function SampleEditor({
   values,
+  sourceType,
   onChange,
   onDelete,
   editingPadLabel,
 }: {
   values: EditorValues;
+  sourceType: PadSource;
   onChange: (patch: Partial<EditorValues>) => void;
   onDelete?: () => void;
   editingPadLabel: string | null;
 }) {
+  // YouTube pads are driven by the IFrame API, which has no pan or reverse
+  // control — those two only apply to Web Audio (builtin/upload) pads.
+  const supportsPanReverse = sourceType !== "youtube";
   return (
     <div className="flex flex-col gap-2 rounded-none border-2 border-gold/50 bg-black/20 p-2 shrink-0">
       <div className="flex items-center justify-between">
@@ -78,6 +85,21 @@ export function SampleEditor({
         />
       </label>
 
+      <label className={`flex flex-col gap-0.5 font-pixel text-base ${supportsPanReverse ? "text-cream/70" : "text-cream/30"}`}>
+        PAN — {values.pan === 0 ? "C" : values.pan < 0 ? `L${Math.round(-values.pan * 100)}` : `R${Math.round(values.pan * 100)}`}
+        {!supportsPanReverse && <span className="text-[10px] normal-case"> (YouTube pads can't pan)</span>}
+        <input
+          type="range"
+          min={-1}
+          max={1}
+          step={0.01}
+          value={values.pan}
+          disabled={!supportsPanReverse}
+          onChange={(e) => onChange({ pan: Number(e.target.value) })}
+          className="accent-gold disabled:opacity-40"
+        />
+      </label>
+
       <div className="flex gap-4">
         <label className="flex items-center gap-2 font-pixel text-base text-cream/70">
           <input
@@ -86,6 +108,16 @@ export function SampleEditor({
             onChange={(e) => onChange({ loop: e.target.checked })}
           />
           LOOP
+        </label>
+
+        <label className={`flex items-center gap-2 font-pixel text-base ${supportsPanReverse ? "text-cream/70" : "text-cream/30"}`}>
+          <input
+            type="checkbox"
+            checked={values.reverse}
+            disabled={!supportsPanReverse}
+            onChange={(e) => onChange({ reverse: e.target.checked })}
+          />
+          REVERSE
         </label>
 
         <div className="flex items-center gap-1 font-pixel text-base text-cream/70">

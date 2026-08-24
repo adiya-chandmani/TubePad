@@ -47,7 +47,7 @@ export interface PlayHandle {
 
 export function playBuffer(
   buffer: AudioBuffer,
-  opts: { start: number; end: number; rate: number; volume: number; loop: boolean }
+  opts: { start: number; end: number; rate: number; volume: number; pan?: number; loop: boolean }
 ): PlayHandle {
   const { ctx, master } = getCtx();
   resumeAudio();
@@ -57,8 +57,11 @@ export function playBuffer(
 
   const gain = ctx.createGain();
   gain.gain.value = opts.volume;
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = opts.pan ?? 0;
   source.connect(gain);
-  gain.connect(master);
+  gain.connect(panner);
+  panner.connect(master);
 
   const end = opts.end > opts.start ? opts.end : buffer.duration;
 
@@ -82,4 +85,21 @@ export function playBuffer(
       }
     },
   };
+}
+
+const reversedCache = new Map<string, AudioBuffer>();
+
+/** Reversed copy of a buffer, cached per source id. A sample trimmed to
+ * [start, end] and then reversed plays back as [duration-end, duration-start]
+ * of the reversed buffer — the caller is responsible for that translation. */
+export function getReversedBuffer(id: string, buffer: AudioBuffer): AudioBuffer {
+  const cached = reversedCache.get(id);
+  if (cached) return cached;
+  const { ctx } = getCtx();
+  const reversed = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    reversed.copyToChannel(Float32Array.from(buffer.getChannelData(ch)).reverse(), ch);
+  }
+  reversedCache.set(id, reversed);
+  return reversed;
 }

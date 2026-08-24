@@ -7,11 +7,13 @@ export function YouTubePlayerPanel({
   title,
   currentTime,
   duration,
+  error,
   onLoad,
 }: {
   title: string | null;
   currentTime: number;
   duration: number;
+  error: string | null;
   onLoad: (url: string) => void;
 }) {
   const [url, setUrl] = useState("");
@@ -38,6 +40,8 @@ export function YouTubePlayerPanel({
           LOAD
         </button>
       </form>
+
+      {error && <p className="font-pixel text-base text-red">{error}</p>}
 
       <div className="relative w-full h-[170px] overflow-hidden bg-black border-2 border-gold/50">
         <div id="tubepad-yt-player" className="h-full w-full" />
