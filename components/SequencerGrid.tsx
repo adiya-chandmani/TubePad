@@ -34,22 +34,22 @@ export function SequencerGrid({
           const row = steps[padId] ?? Array(SEQUENCER_STEPS).fill(false);
           const empty = isPadEmpty(pad);
           return (
-            <div key={padId} className="flex items-center gap-1 py-[1px]">
+            <div key={padId} className="flex items-center gap-1 py-1">
               <span
                 className={`w-14 shrink-0 truncate font-pixel text-sm ${empty ? "text-cream/30" : "text-cream/80"}`}
                 title={pad.name || padId}
               >
                 {padId} {pad.name || (empty ? "" : padId)}
               </span>
-              <div className="flex-1 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-[3px]">
+              <div className="flex-1 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1.5">
                 {row.map((on, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => onToggleStep(padId, i)}
                     className={[
-                      "h-5 border border-black",
-                      i % 4 === 0 && i !== 0 ? "ml-1" : "",
+                      "h-7 border border-black",
+                      i % 4 === 0 && i !== 0 ? "ml-1.5" : "",
                       currentStep === i ? "outline outline-1 outline-cream" : "",
                       on ? "bg-red" : empty ? "bg-navy/40" : "bg-cream/30",
                     ].join(" ")}
