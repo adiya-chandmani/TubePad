@@ -526,8 +526,12 @@ export function MPCShell() {
             <button
               type="button"
               onClick={seqMode ? playSequencer : playRecorded}
-              disabled={seqMode ? isSeqPlaying : state.project.recordedSequence.length === 0}
-              className="border-2 border-black bg-cream px-2 py-0.5 text-navyDeep whitespace-nowrap disabled:opacity-30"
+              disabled={seqMode ? isSeqPlaying : state.project.recordedSequence.length === 0 || isPlayingBack}
+              className={`border-2 border-black px-2 py-0.5 whitespace-nowrap disabled:opacity-60 ${
+                (seqMode && isSeqPlaying) || (!seqMode && isPlayingBack)
+                  ? "bg-gold text-navyDeep animate-pulse"
+                  : "bg-cream text-navyDeep"
+              }`}
               title={seqMode ? "Play the step sequencer" : "Play back the last recording"}
             >
               ▶ PLAY
