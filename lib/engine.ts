@@ -110,21 +110,36 @@ export class PlaybackEngine {
 
     if (pad.sourceType === "synth") {
       if (opts.repeat) return;
+      const existing = this.synthVoices.get(pad.id);
       if (pad.mode === "oneshot" && pad.loop) {
-        const active = this.synthVoices.get(pad.id);
-        if (active) {
-          active.release();
+        // second press of a held drone stops it — no natural end otherwise
+        if (existing) {
+          existing.release();
           this.synthVoices.delete(pad.id);
           return;
         }
+      } else if (existing) {
+        // any other retrigger (double-tap, fast repeat) cuts the previous
+        // voice immediately instead of leaving it to fend for itself — see
+        // the identity check below for why that matters
+        existing.release();
+        this.synthVoices.delete(pad.id);
       }
       const voice = startSynthVoice(synthParamsFromPad(pad, pad.volume, pad.pan));
       this.synthVoices.set(pad.id, voice);
       if (pad.mode === "oneshot" && !pad.loop) {
         const holdMs = ((pad.synthAttack ?? DEFAULT_SYNTH.attack) + (pad.synthDecay ?? DEFAULT_SYNTH.decay) + 0.15) * 1000;
         setTimeout(() => {
-          this.synthVoices.get(pad.id)?.release();
-          this.synthVoices.delete(pad.id);
+          // Only release if this timer's own voice is still the one mapped
+          // to the pad. Without this check, a fast double-tap's first
+          // voice's timer would look up the pad by id, find the SECOND
+          // voice already in the map, and release that one instead —
+          // leaving the first voice's oscillator running with nothing left
+          // to ever stop it.
+          if (this.synthVoices.get(pad.id) === voice) {
+            voice.release();
+            this.synthVoices.delete(pad.id);
+          }
         }, holdMs);
       }
       return;
