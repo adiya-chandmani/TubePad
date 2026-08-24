@@ -9,7 +9,7 @@ import {
   useReducer,
   useRef,
 } from "react";
-import { Pad, PadMode, Project, emptyPad, newProject } from "./types";
+import { Pad, PadMode, Project, RecordedEvent, SEQUENCER_STEPS, emptyPad, newProject, normalizeProject } from "./types";
 import { saveProject, loadProject, LAST_PROJECT_KEY } from "./db";
 
 interface Pending {
@@ -72,7 +72,11 @@ type Action =
   | { type: "CLEAR_YOUTUBE_PADS" }
   | { type: "SET_MASTER_VOLUME"; value: number }
   | { type: "RENAME_PROJECT"; name: string }
-  | { type: "NEW_PROJECT" };
+  | { type: "NEW_PROJECT" }
+  | { type: "SET_BPM"; value: number }
+  | { type: "TOGGLE_STEP"; padId: string; stepIndex: number }
+  | { type: "CLEAR_SEQUENCER" }
+  | { type: "SET_RECORDED_SEQUENCE"; events: RecordedEvent[] };
 
 function pushHistory(history: UndoEntry[], padId: string, prevPad: Pad): UndoEntry[] {
   const next = [...history, { padId, prevPad }];
@@ -82,7 +86,14 @@ function pushHistory(history: UndoEntry[], padId: string, prevPad: Pad): UndoEnt
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "HYDRATE":
-      return { ...state, project: action.project, hydrated: true, history: [], selectedPadId: null, armed: false };
+      return {
+        ...state,
+        project: normalizeProject(action.project),
+        hydrated: true,
+        history: [],
+        selectedPadId: null,
+        armed: false,
+      };
     case "LOAD_VIDEO":
       return {
         ...state,
@@ -200,6 +211,27 @@ function reducer(state: State, action: Action): State {
       return { ...state, project: { ...state.project, name: action.name } };
     case "NEW_PROJECT":
       return { ...state, project: newProject(), selectedPadId: null, armed: false, history: [] };
+    case "SET_BPM":
+      return { ...state, project: { ...state.project, bpm: Math.max(20, Math.min(300, action.value)) } };
+    case "TOGGLE_STEP": {
+      const steps = state.project.sequencerSteps[action.padId] ?? Array(SEQUENCER_STEPS).fill(false);
+      const next = [...steps];
+      next[action.stepIndex] = !next[action.stepIndex];
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          sequencerSteps: { ...state.project.sequencerSteps, [action.padId]: next },
+        },
+      };
+    }
+    case "CLEAR_SEQUENCER": {
+      const steps: Record<string, boolean[]> = {};
+      for (const id of Object.keys(state.project.sequencerSteps)) steps[id] = Array(SEQUENCER_STEPS).fill(false);
+      return { ...state, project: { ...state.project, sequencerSteps: steps } };
+    }
+    case "SET_RECORDED_SEQUENCE":
+      return { ...state, project: { ...state.project, recordedSequence: action.events } };
     default:
       return state;
   }

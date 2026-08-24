@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { isPadEmpty, RATE_STEPS } from "@/lib/types";
+import { isPadEmpty, PAD_IDS, RATE_STEPS, RecordedEvent, SEQUENCER_STEPS } from "@/lib/types";
 import { createPlayer, extractVideoId, TubePadPlayer, YT_STATE } from "@/lib/youtube";
 import { PlaybackEngine } from "@/lib/engine";
 import { setMasterVolume, decodeBlob, cacheBuffer } from "@/lib/audio";
@@ -13,6 +13,8 @@ import { BUILTIN_DRAG_TYPE } from "./SampleLibrary";
 import { YouTubePlayerPanel } from "./YouTubePlayerPanel";
 import { TransportControls } from "./TransportControls";
 import { PadGrid } from "./PadGrid";
+import { SequencerGrid } from "./SequencerGrid";
+import { BpmControl } from "./BpmControl";
 import { DisplayScreen } from "./DisplayScreen";
 import { SampleEditor } from "./SampleEditor";
 import { SampleLibrary } from "./SampleLibrary";
@@ -42,6 +44,28 @@ export function MPCShell() {
   // mismatches on hydration. Defer to a client-only effect instead.
   const [storageAvailable, setStorageAvailable] = useState(true);
   useEffect(() => setStorageAvailable(isStorageAvailable()), []);
+
+  // --- performance record/playback + step sequencer -------------------
+  const [seqMode, setSeqMode] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPlayingBack, setIsPlayingBack] = useState(false);
+  const [isSeqPlaying, setIsSeqPlaying] = useState(false);
+  const [currentStep, setCurrentStep] = useState(-1);
+
+  // setInterval/setTimeout callbacks below are scheduled once and outlive
+  // the render that created them, so they'd otherwise read a stale
+  // `state.project` from closure — this ref keeps them reading current data.
+  const projectRef = useRef(state.project);
+  useEffect(() => {
+    projectRef.current = state.project;
+  }, [state.project]);
+
+  const isRecordingRef = useRef(false);
+  const recordStartRef = useRef(0);
+  const recordedEventsRef = useRef<RecordedEvent[]>([]);
+  const playbackTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const seqTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const seqStepRef = useRef(0);
 
   const selectedPad = state.selectedPadId ? state.project.pads[state.selectedPadId] : null;
   const editStart = selectedPad ? selectedPad.start : state.pending.start;
@@ -189,6 +213,126 @@ export function MPCShell() {
     [state.project.pads]
   );
 
+  const stopPlayback = useCallback(() => {
+    playbackTimeoutsRef.current.forEach(clearTimeout);
+    playbackTimeoutsRef.current = [];
+    setIsPlayingBack(false);
+  }, []);
+
+  const stopSequencer = useCallback(() => {
+    if (seqTimerRef.current) clearInterval(seqTimerRef.current);
+    seqTimerRef.current = null;
+    setIsSeqPlaying(false);
+    setCurrentStep(-1);
+  }, []);
+
+  const stopRecording = useCallback(
+    (commit: boolean) => {
+      isRecordingRef.current = false;
+      setIsRecording(false);
+      if (commit) dispatch({ type: "SET_RECORDED_SEQUENCE", events: recordedEventsRef.current });
+    },
+    [dispatch]
+  );
+
+  const toggleRecording = useCallback(() => {
+    if (isRecordingRef.current) {
+      stopRecording(true);
+      return;
+    }
+    stopPlayback();
+    stopSequencer();
+    recordedEventsRef.current = [];
+    recordStartRef.current = performance.now();
+    isRecordingRef.current = true;
+    setIsRecording(true);
+  }, [stopPlayback, stopSequencer, stopRecording]);
+
+  const playRecorded = useCallback(() => {
+    const events = projectRef.current.recordedSequence;
+    if (events.length === 0) return;
+    stopRecording(false);
+    stopSequencer();
+    stopPlayback();
+    setIsPlayingBack(true);
+    for (const ev of events) {
+      const t = setTimeout(() => {
+        if (ev.kind === "down") handlePadDown(ev.padId, false);
+        else handlePadUp(ev.padId);
+      }, ev.time);
+      playbackTimeoutsRef.current.push(t);
+    }
+    const endTimer = setTimeout(() => setIsPlayingBack(false), events[events.length - 1].time + 200);
+    playbackTimeoutsRef.current.push(endTimer);
+  }, [handlePadDown, handlePadUp, stopPlayback, stopRecording, stopSequencer]);
+
+  // --- pad trigger entry points that a human actually pressed (mouse or
+  // keyboard) — wraps handlePadDown/Up to also capture recording events.
+  // Sequencer/playback trigger pads directly via handlePadDown/Up so they
+  // don't re-record their own output.
+  const userPadDown = useCallback(
+    (padId: string, repeat: boolean) => {
+      if (isRecordingRef.current && !repeat) {
+        recordedEventsRef.current.push({ time: performance.now() - recordStartRef.current, padId, kind: "down" });
+      }
+      handlePadDown(padId, repeat);
+    },
+    [handlePadDown]
+  );
+
+  const userPadUp = useCallback(
+    (padId: string) => {
+      if (isRecordingRef.current) {
+        recordedEventsRef.current.push({ time: performance.now() - recordStartRef.current, padId, kind: "up" });
+      }
+      handlePadUp(padId);
+    },
+    [handlePadUp]
+  );
+
+  const fireSequencerStep = useCallback((stepIndex: number) => {
+    const project = projectRef.current;
+    for (const padId of PAD_IDS) {
+      if (!project.sequencerSteps[padId]?.[stepIndex]) continue;
+      const pad = project.pads[padId];
+      if (!pad || isPadEmpty(pad)) continue;
+      engineRef.current.triggerDown(pad, { repeat: false });
+      setPressed((prev) => new Set(prev).add(padId));
+      setTimeout(() => {
+        setPressed((prev) => {
+          const next = new Set(prev);
+          next.delete(padId);
+          return next;
+        });
+      }, 80);
+    }
+  }, []);
+
+  const playSequencer = useCallback(() => {
+    stopRecording(false);
+    stopPlayback();
+    stopSequencer();
+    const stepMs = 60000 / Math.max(1, projectRef.current.bpm) / 4; // 16th notes
+    seqStepRef.current = 0;
+    setCurrentStep(0);
+    fireSequencerStep(0);
+    seqTimerRef.current = setInterval(() => {
+      seqStepRef.current = (seqStepRef.current + 1) % SEQUENCER_STEPS;
+      setCurrentStep(seqStepRef.current);
+      fireSequencerStep(seqStepRef.current);
+    }, stepMs);
+    setIsSeqPlaying(true);
+  }, [fireSequencerStep, stopPlayback, stopRecording, stopSequencer]);
+
+  // Stop every transport on unmount so intervals/timeouts don't fire after
+  // the component (and its engine/AudioContext usage) is gone.
+  useEffect(() => {
+    return () => {
+      playbackTimeoutsRef.current.forEach(clearTimeout);
+      if (seqTimerRef.current) clearInterval(seqTimerRef.current);
+    };
+  }, []);
+
   // --- global keyboard shortcuts (§10, §14, §20, §49) -----------------
   useEffect(() => {
     const keyToPad = new Map<string, string>();
@@ -221,7 +365,7 @@ export function MPCShell() {
       const padId = keyToPad.get(key);
       if (padId) {
         e.preventDefault();
-        handlePadDown(padId, e.repeat);
+        userPadDown(padId, e.repeat);
         return;
       }
 
@@ -286,7 +430,7 @@ export function MPCShell() {
       const target = e.target as HTMLElement;
       if (isTypingTarget(target)) return;
       const padId = keyToPad.get(e.key.toLowerCase());
-      if (padId) handlePadUp(padId);
+      if (padId) userPadUp(padId);
     }
 
     window.addEventListener("keydown", onKeyDown);
@@ -295,7 +439,7 @@ export function MPCShell() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [state.project.pads, state.selectedPadId, ytPlayer, editRate, handlePadDown, handlePadUp, patchEdit, dispatch]);
+  }, [state.project.pads, state.selectedPadId, ytPlayer, editRate, userPadDown, userPadUp, patchEdit, dispatch]);
 
   // --- drag & drop onto pads (builtin sound or local file) ------------
   async function handleDropAsset(padId: string, e: React.DragEvent) {
@@ -355,10 +499,53 @@ export function MPCShell() {
       )}
 
       <div className="relative w-full max-w-6xl h-full max-h-[900px] flex flex-col rounded-none bg-navyDeep p-3 border-4 border-gold shadow-pixel">
-        <div className="flex items-center justify-between mb-3 shrink-0 gap-3">
+        <div className="flex items-center justify-between mb-3 shrink-0 gap-3 flex-wrap">
           <h1 className="font-display text-red text-[13px] leading-none tracking-tight [text-shadow:2px_2px_0_#000]">
             TUBEPAD
           </h1>
+
+          <BpmControl bpm={state.project.bpm} onChange={(v) => dispatch({ type: "SET_BPM", value: v })} />
+
+          <div className="flex items-center gap-1.5 font-pixel text-lg">
+            <button
+              type="button"
+              onClick={() => setSeqMode((v) => !v)}
+              className={`border-2 border-black px-2 py-0.5 whitespace-nowrap ${seqMode ? "bg-gold text-navyDeep" : "bg-cream text-navyDeep"}`}
+              title="Toggle between the pad grid and the step sequencer"
+            >
+              SEQ
+            </button>
+            <button
+              type="button"
+              onClick={toggleRecording}
+              className={`border-2 border-black px-2 py-0.5 whitespace-nowrap ${isRecording ? "bg-red text-cream animate-pulse" : "bg-cream text-navyDeep"}`}
+              title="Record a live pad performance"
+            >
+              ● REC
+            </button>
+            <button
+              type="button"
+              onClick={seqMode ? playSequencer : playRecorded}
+              disabled={seqMode ? isSeqPlaying : state.project.recordedSequence.length === 0}
+              className="border-2 border-black bg-cream px-2 py-0.5 text-navyDeep whitespace-nowrap disabled:opacity-30"
+              title={seqMode ? "Play the step sequencer" : "Play back the last recording"}
+            >
+              ▶ PLAY
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                stopPlayback();
+                stopSequencer();
+                stopRecording(true);
+              }}
+              className="border-2 border-black bg-cream px-2 py-0.5 text-navyDeep whitespace-nowrap"
+              title="Stop recording / playback / sequencer"
+            >
+              ■ STOP
+            </button>
+          </div>
+
           <label className="flex items-center gap-2 font-pixel text-lg text-cream/80">
             MAIN VOL
             <input
@@ -368,7 +555,7 @@ export function MPCShell() {
               step={0.01}
               value={state.project.masterVolume}
               onChange={(e) => dispatch({ type: "SET_MASTER_VOLUME", value: Number(e.target.value) })}
-              className="w-24 accent-gold"
+              className="w-20 accent-gold"
             />
           </label>
           <ProjectManager />
@@ -407,12 +594,21 @@ export function MPCShell() {
               onAssign={() => dispatch({ type: state.armed ? "DISARM" : "ARM" })}
             />
 
-            <PadGrid
-              pressedIds={pressed}
-              onDropAsset={handleDropAsset}
-              onPadDown={(id) => handlePadDown(id, false)}
-              onPadUp={(id) => handlePadUp(id)}
-            />
+            {seqMode ? (
+              <SequencerGrid
+                pads={state.project.pads}
+                steps={state.project.sequencerSteps}
+                currentStep={currentStep}
+                onToggleStep={(padId, i) => dispatch({ type: "TOGGLE_STEP", padId, stepIndex: i })}
+              />
+            ) : (
+              <PadGrid
+                pressedIds={pressed}
+                onDropAsset={handleDropAsset}
+                onPadDown={(id) => userPadDown(id, false)}
+                onPadUp={(id) => userPadUp(id)}
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-2 min-h-0">
