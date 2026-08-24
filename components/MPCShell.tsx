@@ -604,6 +604,7 @@ export function MPCShell() {
                 steps={state.project.sequencerSteps}
                 currentStep={currentStep}
                 onToggleStep={(padId, i) => dispatch({ type: "TOGGLE_STEP", padId, stepIndex: i })}
+                onClearAll={() => dispatch({ type: "CLEAR_SEQUENCER" })}
               />
             ) : (
               <PadGrid
