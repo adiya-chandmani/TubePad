@@ -240,13 +240,16 @@ export function MPCShell() {
       stopRecording(true);
       return;
     }
+    // Deliberately doesn't stop the sequencer — recording live pad hits
+    // over a running step-sequencer loop is a normal jam workflow. It does
+    // stop a stale recorded-playback so you're not hearing the old take
+    // while laying down a new one.
     stopPlayback();
-    stopSequencer();
     recordedEventsRef.current = [];
     recordStartRef.current = performance.now();
     isRecordingRef.current = true;
     setIsRecording(true);
-  }, [stopPlayback, stopSequencer, stopRecording]);
+  }, [stopPlayback, stopRecording]);
 
   const playRecorded = useCallback(() => {
     const events = projectRef.current.recordedSequence;
@@ -309,7 +312,7 @@ export function MPCShell() {
   }, []);
 
   const playSequencer = useCallback(() => {
-    stopRecording(false);
+    // Doesn't stop an in-progress recording, same reasoning as toggleRecording.
     stopPlayback();
     stopSequencer();
     const stepMs = 60000 / Math.max(1, projectRef.current.bpm) / 4; // 16th notes
@@ -322,7 +325,7 @@ export function MPCShell() {
       fireSequencerStep(seqStepRef.current);
     }, stepMs);
     setIsSeqPlaying(true);
-  }, [fireSequencerStep, stopPlayback, stopRecording, stopSequencer]);
+  }, [fireSequencerStep, stopPlayback, stopSequencer]);
 
   // Stop every transport on unmount so intervals/timeouts don't fire after
   // the component (and its engine/AudioContext usage) is gone.

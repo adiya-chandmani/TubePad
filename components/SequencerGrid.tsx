@@ -48,7 +48,7 @@ export function SequencerGrid({
                     type="button"
                     onClick={() => onToggleStep(padId, i)}
                     className={[
-                      "h-4 border border-black",
+                      "h-5 border border-black",
                       i % 4 === 0 && i !== 0 ? "ml-1" : "",
                       currentStep === i ? "outline outline-1 outline-cream" : "",
                       on ? "bg-red" : empty ? "bg-navy/40" : "bg-cream/30",
