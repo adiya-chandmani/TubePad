@@ -28,28 +28,30 @@ export function SequencerGrid({
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* One row per pad, evenly filling whatever height is left — like
+          the pad grid, this must fit without its own scrollbar. */}
+      <div className="flex-1 min-h-0 grid" style={{ gridTemplateRows: `repeat(${PAD_IDS.length}, minmax(0, 1fr))` }}>
         {PAD_IDS.map((padId) => {
           const pad = pads[padId];
           const row = steps[padId] ?? Array(SEQUENCER_STEPS).fill(false);
           const empty = isPadEmpty(pad);
           return (
-            <div key={padId} className="flex items-center gap-1 py-1">
+            <div key={padId} className="flex items-center gap-1 min-h-0">
               <span
                 className={`w-14 shrink-0 truncate font-pixel text-sm ${empty ? "text-cream/30" : "text-cream/80"}`}
                 title={pad.name || padId}
               >
                 {padId} {pad.name || (empty ? "" : padId)}
               </span>
-              <div className="flex-1 grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1.5">
+              <div className="flex-1 h-[80%] grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1">
                 {row.map((on, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => onToggleStep(padId, i)}
                     className={[
-                      "h-7 border border-black",
-                      i % 4 === 0 && i !== 0 ? "ml-1.5" : "",
+                      "h-full border border-black",
+                      i % 4 === 0 && i !== 0 ? "ml-1" : "",
                       currentStep === i ? "outline outline-1 outline-cream" : "",
                       on ? "bg-red" : empty ? "bg-navy/40" : "bg-cream/30",
                     ].join(" ")}
