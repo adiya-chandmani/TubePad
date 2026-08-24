@@ -213,10 +213,7 @@ export function MPCShell() {
     [state.project.pads]
   );
 
-  const isPlaybackLoopingRef = useRef(false);
-
   const stopPlayback = useCallback(() => {
-    isPlaybackLoopingRef.current = false;
     playbackTimeoutsRef.current.forEach(clearTimeout);
     playbackTimeoutsRef.current = [];
     setIsPlayingBack(false);
@@ -254,13 +251,13 @@ export function MPCShell() {
     setIsRecording(true);
   }, [stopPlayback, stopRecording]);
 
-  // Schedules one pass of the recorded take, then — if still looping —
-  // schedules itself again right after the last event. isPlaybackLoopingRef
-  // is what actually stops the loop (stopPlayback clears it); a plain
-  // "play once" flag can't work here since each pass reschedules itself.
-  const scheduleRecordedPass = useCallback(() => {
+  const playRecorded = useCallback(() => {
     const events = projectRef.current.recordedSequence;
     if (events.length === 0) return;
+    stopRecording(false);
+    stopSequencer();
+    stopPlayback();
+    setIsPlayingBack(true);
     for (const ev of events) {
       const t = setTimeout(() => {
         if (ev.kind === "down") handlePadDown(ev.padId, false);
@@ -268,22 +265,9 @@ export function MPCShell() {
       }, ev.time);
       playbackTimeoutsRef.current.push(t);
     }
-    const loopTimer = setTimeout(() => {
-      if (isPlaybackLoopingRef.current) scheduleRecordedPass();
-    }, events[events.length - 1].time + 200);
-    playbackTimeoutsRef.current.push(loopTimer);
-  }, [handlePadDown, handlePadUp]);
-
-  const playRecorded = useCallback(() => {
-    const events = projectRef.current.recordedSequence;
-    if (events.length === 0) return;
-    stopRecording(false);
-    stopSequencer();
-    stopPlayback();
-    isPlaybackLoopingRef.current = true;
-    setIsPlayingBack(true);
-    scheduleRecordedPass();
-  }, [scheduleRecordedPass, stopPlayback, stopRecording, stopSequencer]);
+    const endTimer = setTimeout(() => setIsPlayingBack(false), events[events.length - 1].time + 200);
+    playbackTimeoutsRef.current.push(endTimer);
+  }, [handlePadDown, handlePadUp, stopPlayback, stopRecording, stopSequencer]);
 
   // --- pad trigger entry points that a human actually pressed (mouse or
   // keyboard) — wraps handlePadDown/Up to also capture recording events.
