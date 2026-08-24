@@ -1,8 +1,10 @@
-// Built-in sound library (PRD §28-29). Real sample packs need licensed
-// audio assets we don't have; these are short synthesized placeholders
-// covering the required categories so the drag-to-pad flow is real end to
-// end. Swap generateBuffer() for fetch()+decodeAudioData() against real
-// files later — BuiltinSound.id stays a stable asset id either way.
+// Built-in sound library (PRD §28-29). Most of these are short synthesized
+// placeholders (no licensed audio assets for every category). A couple of
+// FX sounds use real CC0 files from Kenney.nl instead — see `url` below and
+// public/sounds/CREDITS.md. `duration` for url-based sounds is measured
+// ahead of time (ffprobe) since we need it before the file is decoded.
+
+import { decodeBlob } from "./audio";
 
 export type BuiltinCategory = "DRUMS" | "FX" | "BASS" | "VOCAL";
 
@@ -11,7 +13,8 @@ export interface BuiltinSound {
   name: string;
   category: BuiltinCategory;
   duration: number;
-  render: (ctx: OfflineAudioContext) => void;
+  render?: (ctx: OfflineAudioContext) => void;
+  url?: string;
 }
 
 function noiseBurst(ctx: OfflineAudioContext, dur: number, decay: number, gainVal: number) {
@@ -58,7 +61,8 @@ export const BUILTIN_SOUNDS: BuiltinSound[] = [
   { id: "clap-01", name: "Clap 01", category: "DRUMS", duration: 0.3, render: (c) => noiseBurst(c, 0.3, 2.5, 0.6) },
   { id: "perc-01", name: "Perc 01", category: "DRUMS", duration: 0.2, render: (c) => tone(c, 600, 300, 0.2, "square", 0.3) },
   { id: "perc-02", name: "Perc 02", category: "DRUMS", duration: 0.18, render: (c) => tone(c, 900, 400, 0.18, "triangle", 0.3) },
-  { id: "impact-01", name: "Impact 01", category: "FX", duration: 0.8, render: (c) => { tone(c, 80, 20, 0.8, "sine", 0.8); noiseBurst(c, 0.8, 1.5, 0.4); } },
+  { id: "impact-metal", name: "Impact Metal", category: "FX", duration: 0.21, url: "/sounds/fx/impact-metal.mp3" },
+  { id: "laser-retro", name: "Laser Retro", category: "FX", duration: 0.29, url: "/sounds/fx/laser-retro.mp3" },
   { id: "noise-01", name: "Noise Riser", category: "FX", duration: 1.0, render: (c) => noiseBurst(c, 1.0, 0.3, 0.35) },
   { id: "vinyl-01", name: "Vinyl Crackle", category: "FX", duration: 1.2, render: (c) => noiseBurst(c, 1.2, 0.8, 0.15) },
   { id: "sweep-01", name: "Sweep Up", category: "FX", duration: 0.9, render: (c) => tone(c, 200, 3000, 0.9, "sawtooth", 0.25) },
@@ -73,9 +77,19 @@ const rendered = new Map<string, AudioBuffer>();
 export async function renderBuiltinSound(sound: BuiltinSound): Promise<AudioBuffer> {
   const cached = rendered.get(sound.id);
   if (cached) return cached;
-  const ctx = new OfflineAudioContext(1, Math.ceil(44100 * sound.duration), 44100);
-  sound.render(ctx);
-  const buffer = await ctx.startRendering();
+
+  let buffer: AudioBuffer;
+  if (sound.url) {
+    const res = await fetch(sound.url);
+    buffer = await decodeBlob(sound.id, await res.blob());
+  } else if (sound.render) {
+    const ctx = new OfflineAudioContext(1, Math.ceil(44100 * sound.duration), 44100);
+    sound.render(ctx);
+    buffer = await ctx.startRendering();
+  } else {
+    throw new Error(`Builtin sound "${sound.id}" has neither url nor render`);
+  }
+
   rendered.set(sound.id, buffer);
   return buffer;
 }
