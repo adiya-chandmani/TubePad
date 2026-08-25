@@ -1,9 +1,27 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function BpmControl({ bpm, onChange }: { bpm: number; onChange: (bpm: number) => void }) {
   const tapTimes = useRef<number[]>([]);
+  const [text, setText] = useState(String(bpm));
+  const focusedRef = useRef(false);
+
+  // Only sync from the store while the input isn't focused — otherwise a
+  // typed "1" briefly commits as a clamped 20 (see commit()) and stomps
+  // whatever the user is still typing toward "130".
+  useEffect(() => {
+    if (!focusedRef.current) setText(String(bpm));
+  }, [bpm]);
+
+  function commit() {
+    const n = parseInt(text, 10);
+    if (Number.isNaN(n)) {
+      setText(String(bpm));
+      return;
+    }
+    onChange(n);
+  }
 
   function handleTap() {
     const now = performance.now();
@@ -28,7 +46,23 @@ export function BpmControl({ bpm, onChange }: { bpm: number; onChange: (bpm: num
       >
         −
       </button>
-      <span className="w-8 text-center text-gold">{bpm}</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={text}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+        onBlur={() => {
+          focusedRef.current = false;
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        className="w-9 border border-gold/40 bg-black/30 text-center text-gold outline-none focus:border-gold"
+      />
       <button
         type="button"
         onClick={() => onChange(bpm + 1)}
