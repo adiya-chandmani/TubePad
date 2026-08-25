@@ -24,6 +24,12 @@ export function createLiveOnsetDetector(
   let runningPeak = 0.0001;
   let lastOnsetMs = -Infinity;
   const minGapMs = 250;
+  // Silence (paused video, ambient tab noise) can still have a nonzero RMS —
+  // if runningPeak collapses toward that near-zero floor, the *relative*
+  // threshold collapses with it and tiny fluctuations start reading as
+  // "onsets". This absolute floor means real silence never triggers,
+  // regardless of sensitivity or how far runningPeak has decayed.
+  const MIN_ABSOLUTE_RMS = 0.01;
   let stopped = false;
   let rafId = 0;
 
@@ -37,7 +43,7 @@ export function createLiveOnsetDetector(
     // slow decay so the "peak" tracks the loudest recent material rather
     // than freezing on the very first transient of the whole video
     runningPeak = Math.max(runningPeak * 0.998, rms);
-    const threshold = runningPeak * (0.5 - sensitivity * 0.45);
+    const threshold = Math.max(runningPeak * (0.5 - sensitivity * 0.45), MIN_ABSOLUTE_RMS);
 
     const now = performance.now();
     if (rms > threshold && now - lastOnsetMs > minGapMs) {

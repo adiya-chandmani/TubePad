@@ -121,6 +121,10 @@ export function MPCShell() {
       stream.getAudioTracks()[0].addEventListener("ended", stopAutoDetect);
       captureStreamRef.current = stream;
       setAutoDetectError(null);
+      // The whole point is hands-off listening — a paused (silent) video
+      // would otherwise capture nothing but quiet tab noise, so make sure
+      // it's actually playing.
+      ytPlayer?.player.playVideo();
       liveDetectorRef.current = createLiveOnsetDetector(stream, autoDetectSensitivity, () => {
         const t = ytPlayer?.player.getCurrentTime() ?? 0;
         setYtChopMarkers((prev) => [...prev, t].sort((a, b) => a - b));
