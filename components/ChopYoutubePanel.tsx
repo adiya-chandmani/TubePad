@@ -9,6 +9,7 @@ export function ChopYoutubePanel({
   duration,
   markers,
   onTap,
+  onPlayFromStart,
   onRemove,
   onNudge,
   onApply,
@@ -25,6 +26,7 @@ export function ChopYoutubePanel({
   duration: number;
   markers: number[];
   onTap: () => void;
+  onPlayFromStart: () => void;
   onRemove: (index: number) => void;
   onNudge: (index: number, deltaSeconds: number) => void;
   onApply: () => void;
@@ -48,6 +50,13 @@ export function ChopYoutubePanel({
             ✕
           </button>
         </div>
+
+        <button
+          onClick={onPlayFromStart}
+          className="w-full mb-3 border-2 border-black bg-gold shadow-pixelSm px-3 py-1.5 font-display text-[10px] text-navyDeep hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px]"
+        >
+          ⏮ PLAY FROM START
+        </button>
 
         <div className="relative h-8 border-2 border-gold/50 bg-black/40 mb-3">
           {duration > 0 && (

@@ -84,8 +84,6 @@ export function MPCShell() {
     buffer: AudioBuffer;
   } | null>(null);
 
-  const chopAutoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Manual taps land ~150ms late on average (human reaction time between
   // hearing the hit and clicking) — subtract a fixed offset so markers land
   // closer to the actual transient instead of consistently after it.
@@ -138,11 +136,12 @@ export function MPCShell() {
     setYtChopMarkers([]);
     setAutoDetectError(null);
     setChopMode("youtube");
-    if (chopAutoplayTimerRef.current) clearTimeout(chopAutoplayTimerRef.current);
-    chopAutoplayTimerRef.current = setTimeout(() => {
-      ytPlayer.player.playVideo();
-      chopAutoplayTimerRef.current = null;
-    }, 3000);
+  }, [ytPlayer]);
+
+  const playYtFromStart = useCallback(() => {
+    if (!ytPlayer) return;
+    ytPlayer.player.seekTo(0, true);
+    ytPlayer.player.playVideo();
   }, [ytPlayer]);
 
   const openWaveformChop = useCallback((assetId: string | undefined, sourceType: "builtin" | "upload", name: string) => {
@@ -160,10 +159,6 @@ export function MPCShell() {
     stopAutoDetect();
     setChopMode(null);
     setChopSource(null);
-    if (chopAutoplayTimerRef.current) {
-      clearTimeout(chopAutoplayTimerRef.current);
-      chopAutoplayTimerRef.current = null;
-    }
   }, [stopAutoDetect]);
 
   const tapYtMarker = useCallback(() => {
@@ -495,7 +490,6 @@ export function MPCShell() {
     return () => {
       playbackTimeoutsRef.current.forEach(clearTimeout);
       if (seqTimerRef.current) clearInterval(seqTimerRef.current);
-      if (chopAutoplayTimerRef.current) clearTimeout(chopAutoplayTimerRef.current);
       stopAutoDetect();
     };
   }, []);
@@ -878,6 +872,7 @@ export function MPCShell() {
           duration={state.duration}
           markers={ytChopMarkers}
           onTap={tapYtMarker}
+          onPlayFromStart={playYtFromStart}
           onRemove={(i) => setYtChopMarkers((prev) => prev.filter((_, idx) => idx !== i))}
           onNudge={nudgeYtMarker}
           onApply={applyYtChop}
