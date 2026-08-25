@@ -82,10 +82,17 @@ export function MPCShell() {
     buffer: AudioBuffer;
   } | null>(null);
 
+  const chopAutoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const openYoutubeChop = useCallback(() => {
     if (!ytPlayer) return;
     setYtChopMarkers([]);
     setChopMode("youtube");
+    if (chopAutoplayTimerRef.current) clearTimeout(chopAutoplayTimerRef.current);
+    chopAutoplayTimerRef.current = setTimeout(() => {
+      ytPlayer.player.playVideo();
+      chopAutoplayTimerRef.current = null;
+    }, 3000);
   }, [ytPlayer]);
 
   const openWaveformChop = useCallback((assetId: string | undefined, sourceType: "builtin" | "upload", name: string) => {
@@ -102,6 +109,10 @@ export function MPCShell() {
   const closeChop = useCallback(() => {
     setChopMode(null);
     setChopSource(null);
+    if (chopAutoplayTimerRef.current) {
+      clearTimeout(chopAutoplayTimerRef.current);
+      chopAutoplayTimerRef.current = null;
+    }
   }, []);
 
   const applyYtChop = useCallback(() => {
@@ -420,6 +431,7 @@ export function MPCShell() {
     return () => {
       playbackTimeoutsRef.current.forEach(clearTimeout);
       if (seqTimerRef.current) clearInterval(seqTimerRef.current);
+      if (chopAutoplayTimerRef.current) clearTimeout(chopAutoplayTimerRef.current);
     };
   }, []);
 
