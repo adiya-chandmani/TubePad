@@ -8,6 +8,7 @@ import { PlaybackEngine } from "@/lib/engine";
 import { setMasterVolume, decodeBlob, cacheBuffer, getCachedBuffer } from "@/lib/audio";
 import { saveAsset, isStorageAvailable } from "@/lib/db";
 import { BUILTIN_SOUNDS, renderBuiltinSound } from "@/lib/builtinSounds";
+import { createLiveOnsetDetector, LiveOnsetDetector } from "@/lib/liveOnsetDetector";
 import { BUILTIN_DRAG_TYPE } from "./SampleLibrary";
 
 import { YouTubePlayerPanel } from "./YouTubePlayerPanel";
@@ -71,8 +72,9 @@ export function MPCShell() {
 
   // --- chop: MPC-style slicing across N pads at once -------------------
   // YouTube pads have no PCM access through the IFrame API, so they get
-  // manual tap-to-mark chopping instead of the waveform-based Region/
-  // Threshold modes builtin/upload pads support.
+  // manual tap-to-mark chopping (with an optional tab-audio-capture
+  // auto-detect assist) instead of the waveform-based Region/Threshold
+  // modes builtin/upload pads support.
   const [chopMode, setChopMode] = useState<null | "youtube" | "waveform">(null);
   const [ytChopMarkers, setYtChopMarkers] = useState<number[]>([]);
   const [chopSource, setChopSource] = useState<{
@@ -84,9 +86,57 @@ export function MPCShell() {
 
   const chopAutoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Manual taps land ~150ms late on average (human reaction time between
+  // hearing the hit and clicking) — subtract a fixed offset so markers land
+  // closer to the actual transient instead of consistently after it.
+  const TAP_REACTION_OFFSET = 0.15;
+
+  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
+  const [autoDetectSensitivity, setAutoDetectSensitivity] = useState(0.5);
+  const [autoDetectError, setAutoDetectError] = useState<string | null>(null);
+  const liveDetectorRef = useRef<LiveOnsetDetector | null>(null);
+  const captureStreamRef = useRef<MediaStream | null>(null);
+  const autoDetectSupported =
+    typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
+
+  const stopAutoDetect = useCallback(() => {
+    liveDetectorRef.current?.stop();
+    liveDetectorRef.current = null;
+    captureStreamRef.current?.getTracks().forEach((t) => t.stop());
+    captureStreamRef.current = null;
+    setIsAutoDetecting(false);
+  }, []);
+
+  const startAutoDetect = useCallback(async () => {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setAutoDetectError("Tab audio capture isn't supported in this browser.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      if (stream.getAudioTracks().length === 0) {
+        stream.getTracks().forEach((t) => t.stop());
+        setAutoDetectError('No audio track — check "Share tab audio" in the picker.');
+        return;
+      }
+      stream.getVideoTracks().forEach((t) => t.stop()); // only need the audio
+      stream.getAudioTracks()[0].addEventListener("ended", stopAutoDetect);
+      captureStreamRef.current = stream;
+      setAutoDetectError(null);
+      liveDetectorRef.current = createLiveOnsetDetector(stream, autoDetectSensitivity, () => {
+        const t = ytPlayer?.player.getCurrentTime() ?? 0;
+        setYtChopMarkers((prev) => [...prev, t].sort((a, b) => a - b));
+      });
+      setIsAutoDetecting(true);
+    } catch (err) {
+      setAutoDetectError(err instanceof Error ? err.message : "Couldn't start tab audio capture.");
+    }
+  }, [autoDetectSensitivity, ytPlayer, stopAutoDetect]);
+
   const openYoutubeChop = useCallback(() => {
     if (!ytPlayer) return;
     setYtChopMarkers([]);
+    setAutoDetectError(null);
     setChopMode("youtube");
     if (chopAutoplayTimerRef.current) clearTimeout(chopAutoplayTimerRef.current);
     chopAutoplayTimerRef.current = setTimeout(() => {
@@ -107,12 +157,26 @@ export function MPCShell() {
   }, []);
 
   const closeChop = useCallback(() => {
+    stopAutoDetect();
     setChopMode(null);
     setChopSource(null);
     if (chopAutoplayTimerRef.current) {
       clearTimeout(chopAutoplayTimerRef.current);
       chopAutoplayTimerRef.current = null;
     }
+  }, [stopAutoDetect]);
+
+  const tapYtMarker = useCallback(() => {
+    const t = Math.max(0, (ytPlayer?.player.getCurrentTime() ?? 0) - TAP_REACTION_OFFSET);
+    setYtChopMarkers((prev) => [...prev, t].sort((a, b) => a - b));
+  }, [ytPlayer]);
+
+  const nudgeYtMarker = useCallback((index: number, delta: number) => {
+    setYtChopMarkers((prev) => {
+      const next = [...prev];
+      next[index] = Math.max(0, next[index] + delta);
+      return next.sort((a, b) => a - b);
+    });
   }, []);
 
   const applyYtChop = useCallback(() => {
@@ -432,6 +496,7 @@ export function MPCShell() {
       playbackTimeoutsRef.current.forEach(clearTimeout);
       if (seqTimerRef.current) clearInterval(seqTimerRef.current);
       if (chopAutoplayTimerRef.current) clearTimeout(chopAutoplayTimerRef.current);
+      stopAutoDetect();
     };
   }, []);
 
@@ -812,13 +877,18 @@ export function MPCShell() {
           currentTime={currentTime}
           duration={state.duration}
           markers={ytChopMarkers}
-          onTap={() => {
-            const t = ytPlayer?.player.getCurrentTime() ?? 0;
-            setYtChopMarkers((prev) => [...prev, t].sort((a, b) => a - b));
-          }}
+          onTap={tapYtMarker}
           onRemove={(i) => setYtChopMarkers((prev) => prev.filter((_, idx) => idx !== i))}
+          onNudge={nudgeYtMarker}
           onApply={applyYtChop}
           onClose={closeChop}
+          autoDetectSupported={autoDetectSupported}
+          isAutoDetecting={isAutoDetecting}
+          autoDetectError={autoDetectError}
+          sensitivity={autoDetectSensitivity}
+          onSensitivityChange={setAutoDetectSensitivity}
+          onStartAutoDetect={startAutoDetect}
+          onStopAutoDetect={stopAutoDetect}
         />
       )}
 
