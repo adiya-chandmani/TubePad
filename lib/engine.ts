@@ -73,6 +73,13 @@ export class PlaybackEngine {
     if (this.pollTimer) return;
     this.pollTimer = setInterval(() => {
       if (!this.ytPoll || !this.ytPlayer) return;
+      // seekTo() is async — getCurrentTime() can still report the PREVIOUS
+      // pad's position for a brief window after a rapid re-trigger. Without
+      // this grace window, a fast press of an earlier-in-the-timeline pad
+      // right after a later one reads that stale (larger) time against the
+      // new pad's (smaller) end and immediately pauses, before the seek has
+      // actually landed.
+      if (Date.now() < this.ytSeekGraceUntil) return;
       const t = this.ytPlayer.player.getCurrentTime();
       if (t >= this.ytPoll.end) {
         if (this.ytPoll.loop) {
@@ -86,6 +93,7 @@ export class PlaybackEngine {
   }
 
   private ytPollStart: number | null = null;
+  private ytSeekGraceUntil = 0;
 
   private triggerYoutube(pad: Pad) {
     if (!this.ytPlayer) return;
@@ -95,6 +103,7 @@ export class PlaybackEngine {
     player.playVideo();
     this.ytPoll = { padId: pad.id, end: pad.end, loop: pad.loop };
     this.ytPollStart = pad.start;
+    this.ytSeekGraceUntil = Date.now() + 250;
     this.ensurePoll();
   }
 
@@ -246,6 +255,7 @@ export class PlaybackEngine {
       player.playVideo();
       this.ytPoll = { padId: "__preview__", end: source.end, loop: false };
       this.ytPollStart = source.start;
+      this.ytSeekGraceUntil = Date.now() + 250;
       this.ensurePoll();
       return;
     }
